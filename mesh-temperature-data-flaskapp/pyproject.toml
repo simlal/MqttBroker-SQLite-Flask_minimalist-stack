@@ -1,0 +1,12 @@
+[project]
+name = "mesh-temperature-data-flaskapp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "eventlet>=0.39.1",
+    "flask-bootstrap>=3.3.7.1",
+    "flask-mqtt>=1.2.1",
+    "flask-socketio>=5.5.1",
+]
