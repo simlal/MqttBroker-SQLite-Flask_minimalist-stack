@@ -1,0 +1,14 @@
+name: publish-test
+description: test /publish POST
+method: POST
+url: http://$url/api/publish
+body:
+  content: |-
+    {
+      "temp": 123,
+      "ONLINE": true
+    }
+  content_type: application/json
+headers:
+- name: content-type
+  value: application/json

@@ -1,10 +1,13 @@
 [project]
 name = "mesh-temperature-data-flaskapp"
 version = "0.1.0"
-description = "Add your description here"
+description = "Minimal MQTT client to subscribe to ESP32-Gateway data, save it to SQLite and serve it via Flask"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "flask-bootstrap>=3.3.7.1",
-    "flask-mqtt>=1.2.1",
+ "flask-mqtt>=1.2.1",
+ "requests>=2.32.3",
 ]
+
+[tool.uv]
+dev-dependencies = ["ruff>=0.6.2"]

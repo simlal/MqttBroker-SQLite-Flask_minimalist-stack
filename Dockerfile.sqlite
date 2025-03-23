@@ -1,0 +1,14 @@
+FROM alpine:3.20
+
+RUN apk --no-cache add sqlite bash
+
+WORKDIR /tmp
+
+# Initialize the db
+COPY ./sqlite/init.sql .
+COPY ./sqlite/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+  sqlite3 db.sqlite < init.sql
+
+WORKDIR /db
+CMD ["/entrypoint.sh"]

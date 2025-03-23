@@ -1,0 +1,45 @@
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  db:
+    build:
+      dockerfile: Dockerfile.sqlite
+    volumes:
+      - sqlite-db:/db # For flask mount
+      - ./data:/db # For debugging locally
+    restart: always
+
+  web:
+    build:
+      dockerfile: Dockerfile.flask
+    depends_on:
+      mqtt:
+        condition: service_started
+      db:
+        condition: service_started
+
+    ports:
+      - "5000:5000"
+
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /app
+          # Exclude the project virtual environment — it could be for a
+          # different platform in the container
+          ignore:
+            - .venv/
+
+        # Rebuild the image if dependencies change by checking uv.lock
+        - action: rebuild
+          path: ./uv.lock
+
+volumes:
+  sqlite-db:
+    driver: local
