@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
  "flask-mqtt>=1.2.1",
- "requests>=2.32.3",
+ "python-dotenv>=1.0.1",
 ]
 
 [tool.uv]

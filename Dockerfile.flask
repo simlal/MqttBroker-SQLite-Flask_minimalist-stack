@@ -30,5 +30,11 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Reset the entrypoint, don't invoke `uv`
 ENTRYPOINT []
 
+
+# Set Flask environment variables
+ENV FLASK_APP=app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+ENV DATABASE=/db/db.sqlite
+
 # Run the FastAPI application by default
-CMD ["flask", "run", "-h", "0.0.0.0", "-p", "5000"]
+CMD ["flask", "run" ]

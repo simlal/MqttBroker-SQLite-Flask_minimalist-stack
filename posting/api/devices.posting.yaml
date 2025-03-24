@@ -1,0 +1,16 @@
+name: devices
+description: |-
+  /api/devices GET devices with internal_id filter
+url: http://$url/api/devices
+headers:
+- name: content-type
+  value: application/json
+params:
+- name: internal_id
+  value: '0'
+  enabled: false
+- name: internal_id
+  value: 0,4,6
+  enabled: false
+- name: internal_id
+  value: 0,4,10

@@ -10,8 +10,7 @@ services:
     build:
       dockerfile: Dockerfile.sqlite
     volumes:
-      - sqlite-db:/db # For flask mount
-      - ./data:/db # For debugging locally
+      - ./data:/db
     restart: always
 
   web:
@@ -22,7 +21,13 @@ services:
         condition: service_started
       db:
         condition: service_started
-
+    # Flask Overrides
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_RUN_HOST=0.0.0.0
+      - DATABASE=/db/db.sqlite
+    volumes:
+      - ./data:/db
     ports:
       - "5000:5000"
 
@@ -39,7 +44,6 @@ services:
         # Rebuild the image if dependencies change by checking uv.lock
         - action: rebuild
           path: ./uv.lock
-
-volumes:
-  sqlite-db:
-    driver: local
+# volumes:
+#   sqlite-db:
+#     driver: local
