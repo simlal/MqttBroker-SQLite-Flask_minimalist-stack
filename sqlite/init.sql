@@ -3,9 +3,15 @@ CREATE TABLE temperature_readings (
     mesh_id INTEGER REFERENCES devices(id),
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     temperature REAL NOT NULL,
-    received_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    received_time DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE gateway_readings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     gateway_id INTEGER REFERENCES devices(id),
-    gateway_rssi INTEGER
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    rssi REAL NOT NULL,
+    received_time DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE devices (

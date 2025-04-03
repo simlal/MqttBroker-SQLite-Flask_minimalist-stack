@@ -4,7 +4,7 @@ from flask_mqtt import Mqtt
 import os
 from pathlib import Path
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 import json
 
@@ -74,6 +74,8 @@ def query_db(query, args=(), one=False):
     cur = get_db().execute(query, args)
     rv = cur.fetchall()
     cur.close()
+    if query.strip().upper().startswith(("INSERT", "UPDATE", "DELETE")):
+        get_db().commit()
     return (rv[0] if rv else None) if one else rv
 
 
@@ -141,9 +143,12 @@ def publish_message():
     #
 
 
-@app.route("/api/readings", methods=["GET"])
+@app.route("/api/readings/gateway", methods=["GET"])
 def get_readings():
-    cur = get_db().cursor()
+    # One gateway so only filter daterange
+    internal_ids = request.args.get("internal_id", "")
+    internal_ids = internal_ids.split(",") if internal_ids else []
+
     # Filter last N readings and according to from-to daterange
     logger.debug(f"Request Params: {request.args}")
     n_max_readings = request.args.get("nMaxReadings")
@@ -180,6 +185,24 @@ def get_devices():
             devices.append(device)
     logger.info(f"Retrieved devices: {devices}")
     return json.dumps({"statusCode": 200, "devices": devices})
+
+
+@app.route("/api/insert-reading-test")
+def insert_reading_test():
+    stmt = "SELECT id FROM devices WHERE mac_address = '3C:E9:0E:72:12:4C'"
+    gateway_id_row = query_db(stmt, one=True)
+    if gateway_id_row:
+        gateway_id = gateway_id_row[0]
+
+        # Insert a new reading
+        stmt = "INSERT INTO gateway_readings (gateway_id, timestamp, rssi) VALUES (?, ?, ?)"
+        ten_mins_ago = datetime.now() - timedelta(minutes=10)
+        query_db(stmt, [gateway_id, ten_mins_ago, 55])
+
+        return json.dumps({"statusCode": 200, "gateway_id": gateway_id})
+
+    else:
+        return json.dumps({"statusCode": 404, "error": "Gateway not found"})
 
 
 if __name__ == "__main__":
