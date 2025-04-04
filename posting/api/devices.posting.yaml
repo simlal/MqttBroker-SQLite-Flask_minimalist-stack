@@ -1,6 +1,5 @@
 name: devices
-description: |-
-  /api/devices GET devices with internal_id filter
+description: /api/devices GET devices with internal_id filter
 url: http://$url/api/devices
 headers:
 - name: content-type

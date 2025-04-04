@@ -1,6 +1,5 @@
 name: gateway-readings
-description: |-
-  get /api/gateway-readings for a given gateway with datetime range filters
+description: get /api/gateway-readings for a given gateway with datetime range filters
 url: http://$url/api/gateway-readings
 params:
 - name: macAddress
