@@ -5,8 +5,9 @@ url: http://$url/api/gateway-readings
 body:
   content: |-
     {
-      "mac": "3C:E9:0E:72:12:4C",
-      "rssi": true
+      "macAddress": "3C:E9:0E:72:12:4C",
+      "timestamp": "2025-03-09 10:00:00",
+      "rssi": 43
     }
   content_type: application/json
 headers:

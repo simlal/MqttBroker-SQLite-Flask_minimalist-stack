@@ -1,0 +1,13 @@
+name: gateway-readings
+description: |-
+  get /api/gateway-readings for a given gateway with datetime range filters
+url: http://$url/api/gateway-readings
+params:
+- name: macAddress
+  value: 3C:E9:0E:72:12:4C
+- name: readingsFrom
+  value: 2025-03
+  enabled: false
+- name: readingsTo
+  value: 2025-03-09 11:00
+  enabled: false
