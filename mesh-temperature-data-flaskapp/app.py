@@ -153,22 +153,6 @@ def publish_message():
     #
 
 
-@app.route("/api/readings/gateway", methods=["GET"])
-def get_readings():
-    # One gateway so only filter daterange
-    internal_ids = request.args.get("internal_id", "")
-    internal_ids = internal_ids.split(",") if internal_ids else []
-
-    # Filter last N readings and according to from-to daterange
-    logger.debug(f"Request Params: {request.args}")
-    n_max_readings = request.args.get("nMaxReadings")
-    date_from = request.args.get("dateFrom")
-    date_to = request.args.get("dateTo")
-
-    readings = [1, 2, 3]
-    return json.dumps({"statusCode": 200, "readings": readings})
-
-
 @app.route("/api/devices", methods=["GET"])
 def get_devices():
     # Filter by internal_id
@@ -235,10 +219,58 @@ def insert_gateway_reading():
     except ValueError:
         return json.dumps({"statusCode": 400, "error": f"Invalid rssi format. Could not convert {rssi} to int."})
 
+    logger.info(f"Inserting new reading for gatewayId={gateway_id} of rssi={rssi}")
     stmt = "INSERT INTO gateway_readings (gateway_id, timestamp, rssi) VALUES (?, ?, ?)"
     query_db(stmt, (gateway_id, timestamp, rssi))
 
-    return json.dumps({"statusCode": 200, "gateway_id": gateway_id})
+    return json.dumps({"statusCode": 200, "gatewayId": gateway_id})
+
+
+@app.route("/api/gateway-readings", methods=["GET"])
+def get_gateway_readings():
+    # Filter by mac address first
+    gateway_mac = request.args.get("macAddress")
+    if gateway_mac is None:
+        return json.dumps({"statusCode": 400, "error": "required 'macAddress' in params"})
+
+    # Gateway id from mac address
+    stmt = "SELECT id FROM devices WHERE mac_address = ?"
+    gateway_id_row = query_db(stmt, (gateway_mac,), one=True)
+    if gateway_id_row is None:
+        return json.dumps({"statusCode": 404, "error": f"Gateway with MAC_address={gateway_mac} not found"})
+    else:
+        gateway_id = gateway_id_row[0]
+
+    # If no from-to range provided, return all readings otherwise filter
+    readings_from = request.args.get("readingsFrom")
+    readings_to = request.args.get("readingsTo")
+
+    # stmt builder with filters
+    if readings_from is not None and readings_to is not None:
+        stmt = "SELECT * from gateway_readings WHERE gateway_id = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (gateway_id, readings_from, readings_to))
+
+    elif readings_from is not None:
+        stmt = "SELECT * from gateway_readings WHERE gateway_id = ? AND timestamp >= ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (gateway_id, readings_from))
+    elif readings_to is not None:
+        stmt = "SELECT * from gateway_readings WHERE gateway_id = ? AND timestamp <= ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (gateway_id, readings_from))
+    else:  # all readings
+        stmt = "SELECT * from gateway_readings WHERE gateway_id = ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (gateway_id,))
+
+    readings = []
+    if readings_obj:
+        for reading_obj in readings_obj:
+            reading = {
+                k: v.strftime("%Y-%m-%d %H:%M:%S") if isinstance(v, datetime) else v
+                for k, v in row_obj_to_dict(reading_obj).items()
+            }
+            readings.append(reading)
+
+    logger.info(f"Retrieved {len(readings)} readings for gatewayId={gateway_id}")
+    return json.dumps({"statusCode": 200, "gatewayReadings": readings})
 
 
 if __name__ == "__main__":
