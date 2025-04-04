@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h1>{% block title %}Gateway Readings{% endblock %}</h1>
+    
+    <!-- Device selection and filter form -->
+    <div class="filter-container mb-4">
+        <form method="get" action="{{ url_for('gateway_readings') }}" class="form">
+            <div class="row">
+                <div class="col-md-4 mb-2">
+                    <label for="macAddress" class="form-label">Select Gateway Device:</label>
+                    <select id="macAddress" name="macAddress" class="form-select form-control" required>
+                        <option value="">-- Select a Gateway --</option>
+                        {% for device in devices %}
+                        <option value="{{ device.mac_address }}" {% if selected_gateway == device.mac_address %}selected{% endif %}>
+                            {{ device.internal_id }} - {{ device.mac_address }} ({{ device.info }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="col-md-4 mb-2">
+                    <label for="readingsFromDate" class="form-label">From Date & Time:</label>
+                    <div class="input-group mb-1">
+                        <input type="date" id="readingsFromDate" class="form-control" 
+                               value="{{ readings_from[:10] if readings_from else '' }}">
+                        <input type="time" id="readingsFromTime" class="form-control"
+                               value="{{ readings_from[11:19] if readings_from and readings_from|length > 10 else '' }}">
+                        <input type="hidden" name="readingsFrom" id="readingsFromHidden">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearFromDateTime()">Clear</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-2">
+                    <label for="readingsToDate" class="form-label">To Date & Time:</label>
+                    <div class="input-group mb-1">
+                        <input type="date" id="readingsToDate" class="form-control"
+                               value="{{ readings_to[:10] if readings_to else '' }}">
+                        <input type="time" id="readingsToTime" class="form-control"
+                               value="{{ readings_to[11:19] if readings_to and readings_to|length > 10 else '' }}">
+                        <input type="hidden" name="readingsTo" id="readingsToHidden">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearToDateTime()">Clear</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-2">
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">View Readings</button>
+                    {% if request.args %}
+                        <a href="{{ url_for('gateway_readings') }}" class="btn btn-secondary ml-2">Clear All Filters</a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Readings display section -->
+    {% if selected_gateway %}
+        <h2>Readings for Gateway: {{ selected_gateway }}</h2>
+        
+        {% if gateway_data.gatewayReadings %}
+            <div class="mb-3">
+                <p>Showing {{ gateway_data.gatewayReadings|length }} readings
+                   {% if readings_from or readings_to %}
+                   <span>
+                     {% if readings_from %}from <strong>{{ readings_from }}</strong>{% endif %}
+                     {% if readings_to %}to <strong>{{ readings_to }}</strong>{% endif %}
+                   </span>
+                   {% endif %}
+                </p>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Reading ID</th>
+                            <th>Gateway ID</th>
+                            <th>Timestamp</th>
+                            <th>RSSI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for reading in gateway_data.gatewayReadings %}
+                        <tr>
+                            <td>{{ reading.id }}</td>
+                            <td>{{ reading.gateway_id }}</td>
+                            <td>{{ reading.timestamp }}</td>
+                            <td>{{ reading.rssi }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">No readings found for the selected gateway.</div>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info">Please select a gateway device to view readings.</div>
+    {% endif %}
+    
+    <p class="text-muted mt-3">Last request update: {{ now }}</p>
+
+{% block scripts %}
+<script>
+    // Function to combine date and time inputs before form submission
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const fromDate = document.getElementById('readingsFromDate').value;
+        const fromTime = document.getElementById('readingsFromTime').value;
+        const toDate = document.getElementById('readingsToDate').value;
+        const toTime = document.getElementById('readingsToTime').value;
+        
+        if (fromDate) {
+            const fromDateTime = fromDate + (fromTime ? ' ' + fromTime : ' 00:00:00');
+            document.getElementById('readingsFromHidden').value = fromDateTime;
+        }
+        
+        if (toDate) {
+            const toDateTime = toDate + (toTime ? ' ' + toTime : ' 23:59:59');
+            document.getElementById('readingsToHidden').value = toDateTime;
+        }
+    });
+    
+    // Clear functions
+    function clearFromDateTime() {
+        document.getElementById('readingsFromDate').value = '';
+        document.getElementById('readingsFromTime').value = '';
+        document.getElementById('readingsFromHidden').value = '';
+    }
+    
+    function clearToDateTime() {
+        document.getElementById('readingsToDate').value = '';
+        document.getElementById('readingsToTime').value = '';
+        document.getElementById('readingsToHidden').value = '';
+    }
+</script>
+{% endblock %}
+{% endblock %}
+

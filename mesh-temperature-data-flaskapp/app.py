@@ -119,18 +119,78 @@ def handle_connect(client, userdata, flags, rc):
 ### Flask routes ###
 @app.route("/", methods=["GET"])
 def index():
-    # TODO: SELECT + JOIN LATEST READINGS
-    # TODO: MAKE BASE + REF BASE IN TEMPLATE
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     return render_template("index.html", now=now)
 
 
-@app.route("/readings", methods=["GET"])
-def readings():
-    # TODO: FILTER TIMESTAMP WITH PARAMS AND DISPLAY
-    logger.info("PARAMS: ")
+@app.route("/gateway-readings", methods=["GET"])
+def gateway_readings():
+    # Get available gateway devices for selection
+    devices_response = json.loads(get_devices())
+    all_devices = devices_response.get("devices", [])
+    gateway_devices = [device for device in all_devices if "GATEWAY" in device.get("info", "").upper()]
+
+    # Get gateway readings if a specific gateway is selected
+    gateway_mac = request.args.get("macAddress")
+    gateway_readings = {"statusCode": 200, "gatewayReadings": []}
+
+    # Update readings data when selected
+    if gateway_mac:
+        api_resp_gateway = get_gateway_readings()
+        gateway_readings = json.loads(api_resp_gateway)
+
+    logger.info(gateway_readings)
+    # Format date for the template
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return render_template("readings.html", now=now)
+
+    # Optional date range filters (pass through to template for form values)
+    readings_from = request.args.get("readingsFrom")
+    readings_to = request.args.get("readingsTo")
+
+    return render_template(
+        "gateway_readings.html",
+        devices=gateway_devices,
+        gateway_data=gateway_readings,
+        selected_gateway=gateway_mac,
+        readings_from=readings_from,
+        readings_to=readings_to,
+        now=now,
+    )
+
+
+@app.route("/temperature-readings", methods=["GET"])
+def temperature_readings():
+    # Get available temperature devices for selection
+    devices_response = json.loads(get_devices())
+    all_devices = devices_response.get("devices", [])
+    temp_devices = [device for device in all_devices if "TEMP" in device.get("info", "").upper()]
+
+    # Get temperature readings if a specific device is selected
+    device_id = request.args.get("deviceId")
+    temp_readings = {"statusCode": 200, "temperatureReadings": []}
+
+    if device_id:
+        # You'd need to implement this API endpoint
+        # api_resp_temp = get_temperature_readings()
+        # temp_readings = json.loads(api_resp_temp)
+        pass
+
+    # Format date for the template
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # Optional date range filters
+    readings_from = request.args.get("readingsFrom")
+    readings_to = request.args.get("readingsTo")
+
+    return render_template(
+        "temperature_readings.html",
+        devices=temp_devices,
+        temperature_data=temp_readings,
+        selected_device=device_id,
+        readings_from=readings_from,
+        readings_to=readings_to,
+        now=now,
+    )
 
 
 @app.route("/devices", methods=["GET"])
@@ -246,14 +306,16 @@ def get_gateway_readings():
     readings_to = request.args.get("readingsTo")
 
     # stmt builder with filters
-    if readings_from is not None and readings_to is not None:
+    logger.debug(f"request arguments: {request.args}")
+
+    if readings_from and readings_to:
         stmt = "SELECT * from gateway_readings WHERE gateway_id = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC"
         readings_obj = query_db(stmt, (gateway_id, readings_from, readings_to))
 
-    elif readings_from is not None:
+    elif readings_from:
         stmt = "SELECT * from gateway_readings WHERE gateway_id = ? AND timestamp >= ? ORDER BY timestamp DESC"
         readings_obj = query_db(stmt, (gateway_id, readings_from))
-    elif readings_to is not None:
+    elif readings_to:
         stmt = "SELECT * from gateway_readings WHERE gateway_id = ? AND timestamp <= ? ORDER BY timestamp DESC"
         readings_obj = query_db(stmt, (gateway_id, readings_from))
     else:  # all readings
