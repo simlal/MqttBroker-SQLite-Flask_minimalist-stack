@@ -1,10 +1,8 @@
 from flask import Flask, Request, render_template, request, g
 from flask_mqtt import Mqtt
 
-import os
-from pathlib import Path
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 import sqlite3
 import json
 from typing import Any
@@ -116,7 +114,7 @@ def handle_connect(client, userdata, flags, rc):
         logger.error(f"Bad connection. Code: {rc}")
 
 
-### Flask routes ###
+###### Flask routes ######
 @app.route("/", methods=["GET"])
 def index():
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
