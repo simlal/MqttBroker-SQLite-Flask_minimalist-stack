@@ -11,7 +11,10 @@ MQTT_USERNAME = os.environ.get("MQTT_USERNAME", "")
 MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD", "")
 MQTT_KEEPALIVE = int(os.environ.get("MQTT_KEEPALIVE", 5))
 MQTT_TLS_ENABLED = os.environ.get("MQTT_TLS_ENABLED", "False").lower() == "true"
-MQTT_TOPIC = os.environ.get("TOPIC", "/esp32/temperature")
+# MQTT topics
+MQTT_BASE_TOPIC = os.environ.get("MQTT_BASE_TOPIC", "/readings")
+MQTT_GATEWAY_TOPIC = f"{MQTT_BASE_TOPIC}/gateway/#"
+MQTT_TEMPERATURE_TOPIC = f"{MQTT_BASE_TOPIC}/temperature/#"
 
 # Server configuration
 HOST_URL = os.environ.get("HOST_URL", "0.0.0.0")

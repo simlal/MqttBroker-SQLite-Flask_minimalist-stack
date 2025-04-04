@@ -1,3 +1,4 @@
+from json.encoder import encode_basestring
 from flask import Flask, Request, render_template, request, g
 from flask_mqtt import Mqtt
 
@@ -10,13 +11,15 @@ from typing import Any
 ###### CONFIGURE APP WITH ENV VARIABLES ######
 from config import (
     LOG_LEVEL,
+    MQTT_BASE_TOPIC,
     MQTT_BROKER_URL,
     MQTT_BROKER_PORT,
     MQTT_USERNAME,
     MQTT_PASSWORD,
     MQTT_KEEPALIVE,
     MQTT_TLS_ENABLED,
-    MQTT_TOPIC,
+    MQTT_GATEWAY_TOPIC,
+    MQTT_TEMPERATURE_TOPIC,
     HOST_URL,
     PORT,
     DEBUG_MODE,
@@ -109,7 +112,8 @@ def handle_mqtt_message(client, userdata, message):
 def handle_connect(client, userdata, flags, rc):
     if rc == 0:
         logger.info("Connected successfully")
-        mqtt_client.subscribe(MQTT_TOPIC)
+        mqtt_client.subscribe(MQTT_GATEWAY_TOPIC)
+        mqtt_client.subscribe(MQTT_TEMPERATURE_TOPIC)
     else:
         logger.error(f"Bad connection. Code: {rc}")
 
@@ -331,6 +335,18 @@ def get_gateway_readings():
 
     logger.info(f"Retrieved {len(readings)} readings for gatewayId={gateway_id}")
     return json.dumps({"statusCode": 200, "gatewayReadings": readings})
+
+
+@app.route("/api/publish-gateway-test", methods=["POST"])
+def publish_gateway_test():
+    data_to_pub = json.dumps({"mac_adress": "123", "rssi": 55})
+    topic = f"{MQTT_BASE_TOPIC}/gateway/1"
+    logger.info(f"data to publish on topic {topic} for test: {data_to_pub}")
+    success, msg_id = mqtt_client.publish(topic, bytes(data_to_pub, "utf-8"))
+    if success == 0:
+        return json.dumps({"statusCode": 200, "msgId": msg_id})
+    else:
+        return json.dumps({"statusCode": 400, "error": f"Could not connect to broker. Code: {success}"})
 
 
 if __name__ == "__main__":

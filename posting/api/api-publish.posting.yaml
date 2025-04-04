@@ -1,14 +1,7 @@
 name: publish
 description: test /publish POST
 method: POST
-url: http://$url/api/publish
-body:
-  content: |-
-    {
-      "temp": 123,
-      "ONLINE": true
-    }
-  content_type: application/json
+url: http://$url/api/publish-gateway-test
 headers:
 - name: content-type
   value: application/json
