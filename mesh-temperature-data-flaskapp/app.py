@@ -1,4 +1,3 @@
-from json.encoder import encode_basestring
 from flask import Flask, Request, render_template, request, g
 from flask_mqtt import Mqtt
 
@@ -104,6 +103,13 @@ def close_connection(exception):
 ### MQTT FUNCS ###
 @mqtt_client.on_message()
 def handle_mqtt_message(client, userdata, message):
+    # TODO: Parse message out from gateway vs temperature topics and make inserts
+    #
+    # TODO: Parse topic
+    #
+    # TODO: Call proper api endpoints for insert into DB
+    #
+    # OPTIMIZE: ALL devices known upfront, no insert into 'devices' table if message contains new MAC
     data = dict(topic=message.topic, payload=message.payload.decode())
     logger.info(f"Received message on topic: {data['topic']} with payload: {data['payload']}")
 
@@ -204,15 +210,6 @@ def devices():
 
 
 ### Flask API Endpoints ###
-@app.route("/api/publish", methods=["POST"])
-def publish_message():
-    # TODO: ACTUALLY PUBLISH TO MQTT
-    data = request.get_json()
-    logger.info(f"Request body: {data}")
-    return json.dumps({"statusCode": 200, "message": "DATA PUBLISHED to TOPIC"})
-    # publish_result = mqtt_client.publish(request_data["topic"], request_data["msg"])
-    # return jsonify({"code": publish_result[0]})
-    #
 
 
 @app.route("/api/devices", methods=["GET"])
