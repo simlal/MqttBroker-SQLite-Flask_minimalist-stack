@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, g
+from flask import Flask, Request, render_template, request, g
 from flask_mqtt import Mqtt
 
 import os
@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta
 import sqlite3
 import json
+from typing import Any
 
 ###### CONFIGURE APP WITH ENV VARIABLES ######
 from config import (
@@ -81,6 +82,15 @@ def query_db(query, args=(), one=False):
 
 def row_obj_to_dict(obj: sqlite3.Row) -> dict:
     return {col: obj[col] for col in obj.keys()}
+
+
+###### flask helpers ######
+def get_json_from_req(request: Request) -> Any | None:
+    content_type = request.headers.get("Content-Type")
+    if content_type == "application/json":
+        return request.json
+    else:
+        return None
 
 
 @app.teardown_appcontext
@@ -187,22 +197,48 @@ def get_devices():
     return json.dumps({"statusCode": 200, "devices": devices})
 
 
-@app.route("/api/insert-reading-test")
-def insert_reading_test():
-    stmt = "SELECT id FROM devices WHERE mac_address = '3C:E9:0E:72:12:4C'"
-    gateway_id_row = query_db(stmt, one=True)
-    if gateway_id_row:
+@app.route("/api/gateway-readings", methods=["POST"])
+def insert_gateway_reading():
+    # Filter by mac address first
+    data = get_json_from_req(request)
+    if data is None:
+        return json.dumps({"statusCode": 400, "error": "Expected Content-Type: application/json"})
+
+    gateway_mac = data.get("macAddress")
+    if gateway_mac is None:
+        return json.dumps({"statusCode": 400, "error": "'macAddress' required in body"})
+
+    # Gateway id from mac address
+    stmt = "SELECT id FROM devices WHERE mac_address = ?"
+    gateway_id_row = query_db(stmt, (gateway_mac,), one=True)
+    if gateway_id_row is None:
+        return json.dumps({"statusCode": 404, "error": f"Gateway with MAC_address={gateway_mac} not found"})
+    else:
         gateway_id = gateway_id_row[0]
 
-        # Insert a new reading
-        stmt = "INSERT INTO gateway_readings (gateway_id, timestamp, rssi) VALUES (?, ?, ?)"
-        ten_mins_ago = datetime.now() - timedelta(minutes=10)
-        query_db(stmt, [gateway_id, ten_mins_ago, 55])
+    # Insert a new reading
+    timestamp, rssi = data.get("timestamp"), data.get("rssi")
+    if timestamp is None or rssi is None:
+        return json.dumps({"statusCode": 400, "error": "Missing either of 'timestamp' or 'rssi' in body"})
+    # Data validation of timestamp and rssi
+    try:
+        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return json.dumps(
+            {
+                "statusCode": 400,
+                "error": f"Invalid datetime format: {timestamp}. Required format: 'YYYY-MM-DD HH:MM:SS'",
+            }
+        )
+    try:
+        rssi = int(rssi)
+    except ValueError:
+        return json.dumps({"statusCode": 400, "error": f"Invalid rssi format. Could not convert {rssi} to int."})
 
-        return json.dumps({"statusCode": 200, "gateway_id": gateway_id})
+    stmt = "INSERT INTO gateway_readings (gateway_id, timestamp, rssi) VALUES (?, ?, ?)"
+    query_db(stmt, (gateway_id, timestamp, rssi))
 
-    else:
-        return json.dumps({"statusCode": 404, "error": "Gateway not found"})
+    return json.dumps({"statusCode": 200, "gateway_id": gateway_id})
 
 
 if __name__ == "__main__":

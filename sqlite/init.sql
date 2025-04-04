@@ -10,7 +10,7 @@ CREATE TABLE gateway_readings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     gateway_id INTEGER REFERENCES devices(id),
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    rssi REAL NOT NULL,
+    rssi INTEGER NOT NULL,
     received_time DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

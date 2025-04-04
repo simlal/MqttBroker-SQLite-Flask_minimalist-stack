@@ -1,0 +1,14 @@
+name: gateway-readings
+description: post /api/gateway-readings rssi data
+method: POST
+url: http://$url/api/gateway-readings
+body:
+  content: |-
+    {
+      "mac": "3C:E9:0E:72:12:4C",
+      "rssi": true
+    }
+  content_type: application/json
+headers:
+- name: content-type
+  value: application/json
