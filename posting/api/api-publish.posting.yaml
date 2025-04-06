@@ -1,4 +1,4 @@
-name: publish
+name: publish-gateway-test
 description: test /publish POST
 method: POST
 url: http://$url/api/publish-gateway-test

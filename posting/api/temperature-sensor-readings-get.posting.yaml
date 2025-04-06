@@ -1,0 +1,12 @@
+name: temperature-sensor-readings
+description: get /api/temperature-sensor-readings for a given sensor with datetime range filters
+url: http://$url/api/sensor-temperature-readings
+params:
+  - name: readingsFrom
+    value: 2025-03
+    enabled: false
+  - name: readingsTo
+    value: 2025-03-09 11:00
+    enabled: false
+  - name: macAddress
+    value: 40:91:51:CB:A4:64
