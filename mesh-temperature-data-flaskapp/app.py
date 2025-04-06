@@ -278,7 +278,7 @@ def insert_gateway_reading():
         return json.dumps({"statusCode": 400, "error": f"Invalid rssi format. Could not convert {rssi} to int."})
 
     logger.info(f"Inserting new reading for gatewayId={gateway_id} of rssi={rssi}")
-    stmt = "INSERT INTO gateway_readings (gateway_id, timestamp, rssi) VALUES (?, ?, ?)"
+    stmt = "INSERT INTO gateway_readings (device_id, timestamp, rssi) VALUES (?, ?, ?)"
     query_db(stmt, (gateway_id, timestamp, rssi))
 
     return json.dumps({"statusCode": 200, "gatewayId": gateway_id})
