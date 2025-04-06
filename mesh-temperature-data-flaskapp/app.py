@@ -159,31 +159,32 @@ def gateway_readings():
         "gateway_readings.html",
         devices=gateway_devices,
         gateway_data=gateway_readings,
-        selected_gateway=gateway_mac,
+        selected_device=gateway_mac,
         readings_from=readings_from,
         readings_to=readings_to,
         now=now,
     )
 
 
-@app.route("/temperature-readings", methods=["GET"])
-def temperature_readings():
+@app.route("/sensor-temperature-readings", methods=["GET"])
+def sensor_temperature_readings():
     # Get available temperature devices for selection
     devices_response = json.loads(get_devices())
     all_devices = devices_response.get("devices", [])
-    temp_devices = [device for device in all_devices if "TEMP" in device.get("info", "").upper()]
+    temp_devices = [device for device in all_devices if "TEMPERATURE" in device.get("info", "").upper()]
 
     # Get temperature readings if a specific device is selected
-    device_id = request.args.get("deviceId")
-    temp_readings = {"statusCode": 200, "temperatureReadings": []}
+    sensor_mac = request.args.get("macAddress")
+    temp_readings = {"statusCode": 200, "sensorTemperatureReadings": []}
 
-    if device_id:
-        # You'd need to implement this API endpoint
-        # api_resp_temp = get_temperature_readings()
-        # temp_readings = json.loads(api_resp_temp)
-        pass
+    logger.info(f"{sensor_mac}")
+
+    if sensor_mac:
+        api_resp_temp = get_sensor_temp_readings()
+        temp_readings = json.loads(api_resp_temp)
 
     # Format date for the template
+    logger.info(temp_readings)
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     # Optional date range filters
@@ -191,10 +192,10 @@ def temperature_readings():
     readings_to = request.args.get("readingsTo")
 
     return render_template(
-        "temperature_readings.html",
+        "sensor_temperature_readings.html",
         devices=temp_devices,
-        temperature_data=temp_readings,
-        selected_device=device_id,
+        sensor_data=temp_readings,
+        selected_device=sensor_mac,
         readings_from=readings_from,
         readings_to=readings_to,
         now=now,
@@ -298,7 +299,7 @@ def get_gateway_readings():
     if gateway_id_row is None:
         return json.dumps({"statusCode": 404, "error": f"Gateway with MAC_address={gateway_mac} not found"})
     else:
-        gateway_id = gateway_id_row[0]
+        device_id = gateway_id_row[0]
 
     # If no from-to range provided, return all readings otherwise filter
     readings_from = request.args.get("readingsFrom")
@@ -308,18 +309,18 @@ def get_gateway_readings():
     logger.debug(f"request arguments: {request.args}")
 
     if readings_from and readings_to:
-        stmt = "SELECT * from gateway_readings WHERE gateway_id = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC"
-        readings_obj = query_db(stmt, (gateway_id, readings_from, readings_to))
+        stmt = "SELECT * from gateway_readings WHERE device_id = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (device_id, readings_from, readings_to))
 
     elif readings_from:
-        stmt = "SELECT * from gateway_readings WHERE gateway_id = ? AND timestamp >= ? ORDER BY timestamp DESC"
-        readings_obj = query_db(stmt, (gateway_id, readings_from))
+        stmt = "SELECT * from gateway_readings WHERE device_id = ? AND timestamp >= ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (device_id, readings_from))
     elif readings_to:
-        stmt = "SELECT * from gateway_readings WHERE gateway_id = ? AND timestamp <= ? ORDER BY timestamp DESC"
-        readings_obj = query_db(stmt, (gateway_id, readings_from))
+        stmt = "SELECT * from gateway_readings WHERE device_id = ? AND timestamp <= ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (device_id, readings_from))
     else:  # all readings
-        stmt = "SELECT * from gateway_readings WHERE gateway_id = ? ORDER BY timestamp DESC"
-        readings_obj = query_db(stmt, (gateway_id,))
+        stmt = "SELECT * from gateway_readings WHERE device_id = ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (device_id,))
 
     readings = []
     if readings_obj:
@@ -330,8 +331,109 @@ def get_gateway_readings():
             }
             readings.append(reading)
 
-    logger.info(f"Retrieved {len(readings)} readings for gatewayId={gateway_id}")
+    logger.info(f"Retrieved {len(readings)} readings for device_id={device_id}")
     return json.dumps({"statusCode": 200, "gatewayReadings": readings})
+
+
+@app.route("/api/sensor-temperature-readings", methods=["GET"])
+def get_sensor_temp_readings():
+    # Filter by mac address first
+    sensor_mac = request.args.get("macAddress")
+    if sensor_mac is None:
+        return json.dumps({"statusCode": 400, "error": "required 'macAddress' in params"})
+
+    # Sensor id from mac address
+    stmt = "SELECT id FROM devices WHERE mac_address = ?"
+    sensor_id_row = query_db(stmt, (sensor_mac,), one=True)
+    if sensor_id_row is None:
+        return json.dumps({"statusCode": 404, "error": f"Sensor with MAC_address={sensor_mac} not found"})
+    else:
+        sensor_id = sensor_id_row[0]
+
+    # If no from-to range provided, return all readings otherwise filter
+    readings_from = request.args.get("readingsFrom")
+    readings_to = request.args.get("readingsTo")
+
+    # stmt builder with filters
+    logger.debug(f"request arguments: {request.args}")
+    logger.debug(f"Querying temps for sensor with device_id={sensor_id}")
+
+    if readings_from and readings_to:
+        stmt = "SELECT * from sensor_temperature_readings WHERE device_id = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (sensor_id, readings_from, readings_to))
+
+    elif readings_from:
+        stmt = (
+            "SELECT * from sensor_temperature_readings WHERE device_id = ? AND timestamp >= ? ORDER BY timestamp DESC"
+        )
+        readings_obj = query_db(stmt, (sensor_id, readings_from))
+    elif readings_to:
+        stmt = (
+            "SELECT * from sensor_temperature_readings WHERE device_id = ? AND timestamp <= ? ORDER BY timestamp DESC"
+        )
+        readings_obj = query_db(stmt, (sensor_id, readings_from))
+    else:  # all readings
+        stmt = "SELECT * from sensor_temperature_readings WHERE device_id = ? ORDER BY timestamp DESC"
+        readings_obj = query_db(stmt, (sensor_id,))
+
+    readings = []
+    if readings_obj:
+        for reading_obj in readings_obj:
+            reading = {
+                k: v.strftime("%Y-%m-%d %H:%M:%S") if isinstance(v, datetime) else v
+                for k, v in row_obj_to_dict(reading_obj).items()
+            }
+            readings.append(reading)
+
+    logger.info(f"Retrieved {len(readings)} readings for sensor_id={sensor_id}")
+    return json.dumps({"statusCode": 200, "sensorTemperatureReadings": readings})
+
+
+@app.route("/api/sensor-temperature-readings", methods=["POST"])
+def insert_sensor_temp_readings():
+    # Filter by mac address first
+    data = get_json_from_req(request)
+    if data is None:
+        return json.dumps({"statusCode": 400, "error": "Expected Content-Type: application/json"})
+
+    sensor_mac = data.get("macAddress")
+    if sensor_mac is None:
+        return json.dumps({"statusCode": 400, "error": "'macAddress' required in body"})
+
+    # Sensor id from mac address
+    stmt = "SELECT id FROM devices WHERE mac_address = ?"
+    sensor_id_row = query_db(stmt, (sensor_mac,), one=True)
+    if sensor_id_row is None:
+        return json.dumps({"statusCode": 404, "error": f"Sensor with MAC_address={sensor_mac} not found"})
+    else:
+        sensor_id = sensor_id_row[0]
+
+    # Insert a new reading
+    timestamp, temperature = data.get("timestamp"), data.get("temperature")
+    if timestamp is None or temperature is None:
+        return json.dumps({"statusCode": 400, "error": "Missing either of 'timestamp' or 'temperature' in body"})
+    # Data validation of timestamp and temp
+    try:
+        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return json.dumps(
+            {
+                "statusCode": 400,
+                "error": f"Invalid datetime format: {timestamp}. Required format: 'YYYY-MM-DD HH:MM:SS'",
+            }
+        )
+    try:
+        temperature = float(temperature)
+    except ValueError:
+        return json.dumps(
+            {"statusCode": 400, "error": f"Invalid temp format. Could not convert {temperature} to float."}
+        )
+
+    logger.info(f"Inserting new reading for sensorId={sensor_id} of rssi={temperature}")
+    stmt = "INSERT INTO sensor_temperature_readings (sensor_id, timestamp, rssi) VALUES (?, ?, ?)"
+    query_db(stmt, (sensor_id, timestamp, temperature))
+
+    return json.dumps({"statusCode": 200, "sensorId": sensor_id})
 
 
 @app.route("/api/publish-gateway-test", methods=["POST"])

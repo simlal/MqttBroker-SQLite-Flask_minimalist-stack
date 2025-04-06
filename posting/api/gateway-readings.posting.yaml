@@ -1,0 +1,16 @@
+name: sensor-temperature-readings
+description: |-
+  post /api/sensor-temperature-readings of temperature data
+method: POST
+url: http://$url/api/sensor-temperature-readings
+body:
+  content: |-
+    {
+      "macAddress": "40:91:51:CB:A4:64",
+      "timestamp": "2025-03-10 10:00:00",
+      "temperature": 19.5
+    }
+  content_type: application/json
+headers:
+- name: content-type
+  value: application/json

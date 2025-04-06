@@ -1,6 +1,6 @@
-CREATE TABLE temperature_readings (
+CREATE TABLE sensor_temperature_readings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mesh_id INTEGER REFERENCES devices(id),
+    device_id INTEGER REFERENCES devices(id),
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     temperature REAL NOT NULL,
     received_time DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -8,7 +8,7 @@ CREATE TABLE temperature_readings (
 
 CREATE TABLE gateway_readings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    gateway_id INTEGER REFERENCES devices(id),
+    device_id INTEGER REFERENCES devices(id),
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     rssi INTEGER NOT NULL,
     received_time DATETIME DEFAULT CURRENT_TIMESTAMP

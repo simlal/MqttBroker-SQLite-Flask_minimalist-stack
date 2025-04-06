@@ -1,16 +1,16 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h1>{% block title %}Gateway Readings{% endblock %}</h1>
+    <h1>{% block title %}Sensor Temperature Readings{% endblock %}</h1>
     
     <!-- Device selection and filter form -->
     <div class="filter-container mb-4">
-        <form method="get" action="{{ url_for('gateway_readings') }}" class="form">
+        <form method="get" action="{{ url_for('sensor_temperature_readings') }}" class="form">
             <div class="row">
                 <div class="col-md-4 mb-2">
-                    <label for="macAddress" class="form-label">Select Gateway Device:</label>
+                    <label for="macAddress" class="form-label">Select Temperature Sensor Device:</label>
                     <select id="macAddress" name="macAddress" class="form-select form-control" required>
-                        <option value="">-- Select a Gateway --</option>
+                        <option value="">-- Select a Sensor --</option>
                         {% for device in devices %}
                         <option value="{{ device.mac_address }}" {% if selected_device == device.mac_address %}selected{% endif %}>
                             {{ device.internal_id }} - {{ device.mac_address }} ({{ device.info }})
@@ -61,11 +61,11 @@
 
     <!-- Readings display section -->
     {% if selected_device %}
-        <h2>Readings for Gateway: {{ selected_device }}</h2>
+        <h2>Readings for Temperature device: {{ selected_device }}</h2>
         
-        {% if gateway_data.gatewayReadings %}
+        {% if sensor_data.sensorTemperatureReadings %}
             <div class="mb-3">
-                <p>Showing {{ gateway_data.gatewayReadings|length }} readings
+                <p>Showing {{ sensor_data.sensorTemperatureReadings|length }} readings
                    {% if readings_from or readings_to %}
                    <span>
                      {% if readings_from %}from <strong>{{ readings_from }}</strong>{% endif %}
@@ -80,28 +80,28 @@
                     <thead class="thead-dark">
                         <tr>
                             <th>Reading ID</th>
-                            <th>Gateway ID</th>
+                            <th>Sensor ID</th>
                             <th>Timestamp</th>
-                            <th>RSSI</th>
+                            <th>Temperature</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for reading in gateway_data.gatewayReadings %}
+                        {% for reading in sensor_data.sensorTemperatureReadings %}
                         <tr>
                             <td>{{ reading.id }}</td>
-                            <td>{{ reading.device_id }}</td>
+                            <td>{{ reading.sensor_id }}</td>
                             <td>{{ reading.timestamp }}</td>
-                            <td>{{ reading.rssi }}</td>
+                            <td>{{ reading.temperature }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         {% else %}
-            <div class="alert alert-info">No readings found for the selected gateway.</div>
+            <div class="alert alert-info">No readings found for the selected sensor.</div>
         {% endif %}
     {% else %}
-        <div class="alert alert-info">Please select a gateway device to view readings.</div>
+        <div class="alert alert-info">Please select a temperature sensor device to view readings.</div>
     {% endif %}
     
     <p class="text-muted mt-3">Last request update: {{ now }}</p>
