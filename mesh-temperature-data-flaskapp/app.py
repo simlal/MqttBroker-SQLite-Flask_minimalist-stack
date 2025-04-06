@@ -177,8 +177,6 @@ def sensor_temperature_readings():
     sensor_mac = request.args.get("macAddress")
     temp_readings = {"statusCode": 200, "sensorTemperatureReadings": []}
 
-    logger.info(f"{sensor_mac}")
-
     if sensor_mac:
         api_resp_temp = get_sensor_temp_readings()
         temp_readings = json.loads(api_resp_temp)
@@ -237,7 +235,7 @@ def get_devices():
                 for k, v in row_obj_to_dict(device_obj).items()
             }
             devices.append(device)
-    logger.info(f"Retrieved devices: {devices}")
+    logger.debug(f"Retrieved devices: {devices}")
     return json.dumps({"statusCode": 200, "devices": devices})
 
 
@@ -317,7 +315,7 @@ def get_gateway_readings():
         readings_obj = query_db(stmt, (device_id, readings_from))
     elif readings_to:
         stmt = "SELECT * from gateway_readings WHERE device_id = ? AND timestamp <= ? ORDER BY timestamp DESC"
-        readings_obj = query_db(stmt, (device_id, readings_from))
+        readings_obj = query_db(stmt, (device_id, readings_to))
     else:  # all readings
         stmt = "SELECT * from gateway_readings WHERE device_id = ? ORDER BY timestamp DESC"
         readings_obj = query_db(stmt, (device_id,))
@@ -371,7 +369,7 @@ def get_sensor_temp_readings():
         stmt = (
             "SELECT * from sensor_temperature_readings WHERE device_id = ? AND timestamp <= ? ORDER BY timestamp DESC"
         )
-        readings_obj = query_db(stmt, (sensor_id, readings_from))
+        readings_obj = query_db(stmt, (sensor_id, readings_to))
     else:  # all readings
         stmt = "SELECT * from sensor_temperature_readings WHERE device_id = ? ORDER BY timestamp DESC"
         readings_obj = query_db(stmt, (sensor_id,))
@@ -430,7 +428,7 @@ def insert_sensor_temp_readings():
         )
 
     logger.info(f"Inserting new reading for sensorId={sensor_id} of rssi={temperature}")
-    stmt = "INSERT INTO sensor_temperature_readings (sensor_id, timestamp, rssi) VALUES (?, ?, ?)"
+    stmt = "INSERT INTO sensor_temperature_readings (device_id, timestamp, temperature) VALUES (?, ?, ?)"
     query_db(stmt, (sensor_id, timestamp, temperature))
 
     return json.dumps({"statusCode": 200, "sensorId": sensor_id})
