@@ -93,6 +93,46 @@ def get_json_from_req(request: Request) -> Any | None:
         return None
 
 
+# Processing gateway data logic from /api endpoints or handle_mqtt_message
+def process_gateway_data(data: dict) -> str:
+    gateway_mac = data.get("macAddress")
+    if gateway_mac is None:
+        return json.dumps({"statusCode": 400, "error": "'macAddress' required in body"})
+
+    # Gateway id from mac address
+    stmt = "SELECT id FROM devices WHERE mac_address = ?"
+    gateway_id_row = query_db(stmt, (gateway_mac,), one=True)
+    if gateway_id_row is None:
+        return json.dumps({"statusCode": 404, "error": f"Gateway with MAC_address={gateway_mac} not found"})
+    else:
+        gateway_id = gateway_id_row[0]
+
+    # Insert a new reading
+    timestamp, rssi = data.get("timestamp"), data.get("rssi")
+    if timestamp is None or rssi is None:
+        return json.dumps({"statusCode": 400, "error": "Missing either of 'timestamp' or 'rssi' in body"})
+    # Data validation of timestamp and rssi
+    try:
+        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return json.dumps(
+            {
+                "statusCode": 400,
+                "error": f"Invalid datetime format: {timestamp}. Required format: 'YYYY-MM-DD HH:MM:SS'",
+            }
+        )
+    try:
+        rssi = int(rssi)
+    except ValueError:
+        return json.dumps({"statusCode": 400, "error": f"Invalid rssi format. Could not convert {rssi} to int."})
+
+    logger.info(f"Inserting new reading for gatewayId={gateway_id} of rssi={rssi}")
+    stmt = "INSERT INTO gateway_readings (device_id, timestamp, rssi) VALUES (?, ?, ?)"
+    query_db(stmt, (gateway_id, timestamp, rssi))
+
+    return json.dumps({"statusCode": 200, "device_id": gateway_id})
+
+
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, "_database", None)
@@ -104,9 +144,13 @@ def close_connection(exception):
 @mqtt_client.on_message()
 def handle_mqtt_message(client, userdata, message):
     # TODO: Parse message out from gateway vs temperature topics and make inserts
-    #
-    # TODO: Parse topic
-    #
+    if MQTT_GATEWAY_TOPIC in message.topic:
+        pass
+    elif MQTT_TEMPERATURE_TOPIC in message.topic:
+        pass
+    else:
+        logger.warning(f"Not processing topic {message.topic}")
+
     # TODO: Call proper api endpoints for insert into DB
     #
     # OPTIMIZE: ALL devices known upfront, no insert into 'devices' table if message contains new MAC
@@ -118,8 +162,9 @@ def handle_mqtt_message(client, userdata, message):
 def handle_connect(client, userdata, flags, rc):
     if rc == 0:
         logger.info("Connected successfully")
-        mqtt_client.subscribe(MQTT_GATEWAY_TOPIC)
-        mqtt_client.subscribe(MQTT_TEMPERATURE_TOPIC)
+        # Subscribe to all sensors and gateways
+        mqtt_client.subscribe(f"{MQTT_GATEWAY_TOPIC}/#")
+        mqtt_client.subscribe(f"{MQTT_TEMPERATURE_TOPIC}/#")
     else:
         logger.error(f"Bad connection. Code: {rc}")
 
@@ -246,42 +291,7 @@ def insert_gateway_reading():
     if data is None:
         return json.dumps({"statusCode": 400, "error": "Expected Content-Type: application/json"})
 
-    gateway_mac = data.get("macAddress")
-    if gateway_mac is None:
-        return json.dumps({"statusCode": 400, "error": "'macAddress' required in body"})
-
-    # Gateway id from mac address
-    stmt = "SELECT id FROM devices WHERE mac_address = ?"
-    gateway_id_row = query_db(stmt, (gateway_mac,), one=True)
-    if gateway_id_row is None:
-        return json.dumps({"statusCode": 404, "error": f"Gateway with MAC_address={gateway_mac} not found"})
-    else:
-        gateway_id = gateway_id_row[0]
-
-    # Insert a new reading
-    timestamp, rssi = data.get("timestamp"), data.get("rssi")
-    if timestamp is None or rssi is None:
-        return json.dumps({"statusCode": 400, "error": "Missing either of 'timestamp' or 'rssi' in body"})
-    # Data validation of timestamp and rssi
-    try:
-        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return json.dumps(
-            {
-                "statusCode": 400,
-                "error": f"Invalid datetime format: {timestamp}. Required format: 'YYYY-MM-DD HH:MM:SS'",
-            }
-        )
-    try:
-        rssi = int(rssi)
-    except ValueError:
-        return json.dumps({"statusCode": 400, "error": f"Invalid rssi format. Could not convert {rssi} to int."})
-
-    logger.info(f"Inserting new reading for gatewayId={gateway_id} of rssi={rssi}")
-    stmt = "INSERT INTO gateway_readings (device_id, timestamp, rssi) VALUES (?, ?, ?)"
-    query_db(stmt, (gateway_id, timestamp, rssi))
-
-    return json.dumps({"statusCode": 200, "gatewayId": gateway_id})
+    return process_gateway_data(data)
 
 
 @app.route("/api/gateway-readings", methods=["GET"])
@@ -387,6 +397,7 @@ def get_sensor_temp_readings():
     return json.dumps({"statusCode": 200, "sensorTemperatureReadings": readings})
 
 
+# TODO: SAME AS GATEWAY WITH HELPER FUNC
 @app.route("/api/sensor-temperature-readings", methods=["POST"])
 def insert_sensor_temp_readings():
     # Filter by mac address first
@@ -431,13 +442,14 @@ def insert_sensor_temp_readings():
     stmt = "INSERT INTO sensor_temperature_readings (device_id, timestamp, temperature) VALUES (?, ?, ?)"
     query_db(stmt, (sensor_id, timestamp, temperature))
 
-    return json.dumps({"statusCode": 200, "sensorId": sensor_id})
+    return json.dumps({"statusCode": 200, "device_id": sensor_id})
 
 
 @app.route("/api/publish-gateway-test", methods=["POST"])
 def publish_gateway_test():
-    data_to_pub = json.dumps({"mac_adress": "123", "rssi": 55})
-    topic = f"{MQTT_BASE_TOPIC}/gateway/1"
+    gateway_mac = "3C:E9:0E:72:12:4C"
+    data_to_pub = json.dumps({"mac_adress": gateway_mac, "rssi": 55})
+    topic = f"{MQTT_BASE_TOPIC}/gateway/{gateway_mac}"
     logger.info(f"data to publish on topic {topic} for test: {data_to_pub}")
     success, msg_id = mqtt_client.publish(topic, bytes(data_to_pub, "utf-8"))
     if success == 0:
