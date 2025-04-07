@@ -133,6 +133,47 @@ def process_gateway_data(data: dict) -> str:
     return json.dumps({"statusCode": 200, "device_id": gateway_id})
 
 
+def process_sensor_temp_data(data: dict) -> str:
+    sensor_mac = data.get("macAddress")
+    if sensor_mac is None:
+        return json.dumps({"statusCode": 400, "error": "'macAddress' required in body"})
+
+    # Sensor id from mac address
+    stmt = "SELECT id FROM devices WHERE mac_address = ?"
+    sensor_id_row = query_db(stmt, (sensor_mac,), one=True)
+    if sensor_id_row is None:
+        return json.dumps({"statusCode": 404, "error": f"Sensor with MAC_address={sensor_mac} not found"})
+    else:
+        sensor_id = sensor_id_row[0]
+
+    # Insert a new reading
+    timestamp, temperature = data.get("timestamp"), data.get("temperature")
+    if timestamp is None or temperature is None:
+        return json.dumps({"statusCode": 400, "error": "Missing either of 'timestamp' or 'temperature' in body"})
+    # Data validation of timestamp and temp
+    try:
+        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return json.dumps(
+            {
+                "statusCode": 400,
+                "error": f"Invalid datetime format: {timestamp}. Required format: 'YYYY-MM-DD HH:MM:SS'",
+            }
+        )
+    try:
+        temperature = float(temperature)
+    except ValueError:
+        return json.dumps(
+            {"statusCode": 400, "error": f"Invalid temp format. Could not convert {temperature} to float."}
+        )
+
+    logger.info(f"Inserting new reading for sensorId={sensor_id} of rssi={temperature}")
+    stmt = "INSERT INTO sensor_temperature_readings (device_id, timestamp, temperature) VALUES (?, ?, ?)"
+    query_db(stmt, (sensor_id, timestamp, temperature))
+
+    return json.dumps({"statusCode": 200, "device_id": sensor_id})
+
+
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, "_database", None)
@@ -397,7 +438,6 @@ def get_sensor_temp_readings():
     return json.dumps({"statusCode": 200, "sensorTemperatureReadings": readings})
 
 
-# TODO: SAME AS GATEWAY WITH HELPER FUNC
 @app.route("/api/sensor-temperature-readings", methods=["POST"])
 def insert_sensor_temp_readings():
     # Filter by mac address first
@@ -405,44 +445,7 @@ def insert_sensor_temp_readings():
     if data is None:
         return json.dumps({"statusCode": 400, "error": "Expected Content-Type: application/json"})
 
-    sensor_mac = data.get("macAddress")
-    if sensor_mac is None:
-        return json.dumps({"statusCode": 400, "error": "'macAddress' required in body"})
-
-    # Sensor id from mac address
-    stmt = "SELECT id FROM devices WHERE mac_address = ?"
-    sensor_id_row = query_db(stmt, (sensor_mac,), one=True)
-    if sensor_id_row is None:
-        return json.dumps({"statusCode": 404, "error": f"Sensor with MAC_address={sensor_mac} not found"})
-    else:
-        sensor_id = sensor_id_row[0]
-
-    # Insert a new reading
-    timestamp, temperature = data.get("timestamp"), data.get("temperature")
-    if timestamp is None or temperature is None:
-        return json.dumps({"statusCode": 400, "error": "Missing either of 'timestamp' or 'temperature' in body"})
-    # Data validation of timestamp and temp
-    try:
-        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return json.dumps(
-            {
-                "statusCode": 400,
-                "error": f"Invalid datetime format: {timestamp}. Required format: 'YYYY-MM-DD HH:MM:SS'",
-            }
-        )
-    try:
-        temperature = float(temperature)
-    except ValueError:
-        return json.dumps(
-            {"statusCode": 400, "error": f"Invalid temp format. Could not convert {temperature} to float."}
-        )
-
-    logger.info(f"Inserting new reading for sensorId={sensor_id} of rssi={temperature}")
-    stmt = "INSERT INTO sensor_temperature_readings (device_id, timestamp, temperature) VALUES (?, ?, ?)"
-    query_db(stmt, (sensor_id, timestamp, temperature))
-
-    return json.dumps({"statusCode": 200, "device_id": sensor_id})
+    return process_sensor_temp_data(data)
 
 
 @app.route("/api/publish-gateway-test", methods=["POST"])
