@@ -6,6 +6,7 @@ from datetime import datetime
 import sqlite3
 import json
 from typing import Any
+import random
 
 ###### CONFIGURE APP WITH ENV VARIABLES ######
 from config import (
@@ -100,12 +101,14 @@ def process_gateway_data(data: dict) -> str:
         return json.dumps({"statusCode": 400, "error": "'macAddress' required in body"})
 
     # Gateway id from mac address
-    stmt = "SELECT id FROM devices WHERE mac_address = ?"
+    stmt = "SELECT id FROM devices WHERE mac_address = ? AND info LIKE '%GATEWAY%'"
     gateway_id_row = query_db(stmt, (gateway_mac,), one=True)
     if gateway_id_row is None:
         return json.dumps({"statusCode": 404, "error": f"Gateway with MAC_address={gateway_mac} not found"})
     else:
         gateway_id = gateway_id_row[0]
+
+    # Validate its a gateway
 
     # Insert a new reading
     timestamp, rssi = data.get("timestamp"), data.get("rssi")
@@ -139,7 +142,7 @@ def process_sensor_temp_data(data: dict) -> str:
         return json.dumps({"statusCode": 400, "error": "'macAddress' required in body"})
 
     # Sensor id from mac address
-    stmt = "SELECT id FROM devices WHERE mac_address = ?"
+    stmt = "SELECT id FROM devices WHERE mac_address = ? AND info LIKE '%TEMPERATURE%'"
     sensor_id_row = query_db(stmt, (sensor_mac,), one=True)
     if sensor_id_row is None:
         return json.dumps({"statusCode": 404, "error": f"Sensor with MAC_address={sensor_mac} not found"})
@@ -176,7 +179,7 @@ def process_sensor_temp_data(data: dict) -> str:
 
 @app.teardown_appcontext
 def close_connection(exception):
-    db = getattr(g, "_database", None)
+    db = getattr(g, "db", None)
     if db is not None:
         db.close()
 
@@ -184,19 +187,30 @@ def close_connection(exception):
 ### MQTT FUNCS ###
 @mqtt_client.on_message()
 def handle_mqtt_message(client, userdata, message):
-    # TODO: Parse message out from gateway vs temperature topics and make inserts
-    if MQTT_GATEWAY_TOPIC in message.topic:
-        pass
-    elif MQTT_TEMPERATURE_TOPIC in message.topic:
-        pass
-    else:
-        logger.warning(f"Not processing topic {message.topic}")
-
-    # TODO: Call proper api endpoints for insert into DB
-    #
     # OPTIMIZE: ALL devices known upfront, no insert into 'devices' table if message contains new MAC
-    data = dict(topic=message.topic, payload=message.payload.decode())
-    logger.info(f"Received message on topic: {data['topic']} with payload: {data['payload']}")
+    with app.app_context():
+        processed_message = None
+        try:
+            payload = message.payload.decode()
+            logger.info(f"Received message on topic={message.topic}, payload={payload}")
+            data = json.loads(payload)
+
+            if MQTT_GATEWAY_TOPIC in message.topic:
+                logger.info(f"Processing message from gateway topic: {message.topic}")
+                # Preparing payload
+                processed_message = process_gateway_data(data)
+            elif MQTT_TEMPERATURE_TOPIC in message.topic:
+                logger.info(f"Processing message from temperature topic: {message.topic}")
+                processed_message = process_sensor_temp_data(data)
+            else:
+                logger.warning(f"Not processing topic {message.topic}")
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse JSON payload from: {message.payload}")
+        except Exception as e:
+            logger.error(f"Error processing MQTT message: {str(e)}")
+
+        if processed_message:
+            logger.info(f"Processed message with db operation: {processed_message}")
 
 
 @mqtt_client.on_connect()
@@ -206,8 +220,9 @@ def handle_connect(client, userdata, flags, rc):
         # Subscribe to all sensors and gateways
         mqtt_client.subscribe(f"{MQTT_GATEWAY_TOPIC}/#")
         mqtt_client.subscribe(f"{MQTT_TEMPERATURE_TOPIC}/#")
+        logger.info(f"Subscribed to topics: {MQTT_GATEWAY_TOPIC}/# and {MQTT_TEMPERATURE_TOPIC}/#")
     else:
-        logger.error(f"Bad connection. Code: {rc}")
+        logger.error(f"Bad connection to MQTT broker. Code: {rc}")
 
 
 ###### Flask routes ######
@@ -450,10 +465,25 @@ def insert_sensor_temp_readings():
 
 @app.route("/api/publish-gateway-test", methods=["POST"])
 def publish_gateway_test():
-    gateway_mac = "3C:E9:0E:72:12:4C"
-    data_to_pub = json.dumps({"mac_adress": gateway_mac, "rssi": 55})
-    topic = f"{MQTT_BASE_TOPIC}/gateway/{gateway_mac}"
-    logger.info(f"data to publish on topic {topic} for test: {data_to_pub}")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data = {"macAddress": "3C:E9:0E:72:12:4C", "timestamp": now, "rssi": random.randint(10, 100)}
+    data_to_pub = json.dumps(data)
+    topic = f"{MQTT_GATEWAY_TOPIC}/{data['macAddress']}"
+    logger.info(f"Publishing on {topic=} with data: {data_to_pub}")
+    success, msg_id = mqtt_client.publish(topic, bytes(data_to_pub, "utf-8"))
+    if success == 0:
+        return json.dumps({"statusCode": 200, "msgId": msg_id})
+    else:
+        return json.dumps({"statusCode": 400, "error": f"Could not connect to broker. Code: {success}"})
+
+
+@app.route("/api/publish-temperature-test", methods=["POST"])
+def publish_temperature_test():
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data = {"macAddress": "E0:5A:1B:30:B3:38", "timestamp": now, "temperature": random.uniform(15, 25)}
+    data_to_pub = json.dumps(data)
+    topic = f"{MQTT_TEMPERATURE_TOPIC}/{data['macAddress']}"
+    logger.info(f"Publishing on {topic=} with data: {data_to_pub}")
     success, msg_id = mqtt_client.publish(topic, bytes(data_to_pub, "utf-8"))
     if success == 0:
         return json.dumps({"statusCode": 200, "msgId": msg_id})
