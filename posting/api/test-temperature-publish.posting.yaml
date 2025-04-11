@@ -1,0 +1,8 @@
+name: test-temperature-publish
+
+description: test /publish POST to check insert to db msg
+method: POST
+url: http://$url/api/publish-temperature-test
+headers:
+  - name: content-type
+    value: application/json

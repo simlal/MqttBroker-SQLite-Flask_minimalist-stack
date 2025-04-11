@@ -1,7 +1,8 @@
-name: publish-gateway-test
+name: test-gateway-publish
+
 description: test /publish POST
 method: POST
 url: http://$url/api/publish-gateway-test
 headers:
-- name: content-type
-  value: application/json
+  - name: content-type
+    value: application/json
