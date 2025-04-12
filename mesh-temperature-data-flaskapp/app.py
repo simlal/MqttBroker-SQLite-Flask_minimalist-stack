@@ -192,12 +192,16 @@ def handle_mqtt_message(client, userdata, message):
         processed_message = None
         try:
             payload = message.payload.decode()
-            logger.info(f"Received message on topic={message.topic}, payload={payload}")
+            logger.info(f"Received message with payload={payload}")
             data = json.loads(payload)
 
             if MQTT_GATEWAY_TOPIC in message.topic:
                 logger.info(f"Processing message from gateway topic: {message.topic}")
                 # Preparing payload
+                # FIX: No real time clock in gateway for now, lets use received time as timestamp, overriding
+                data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                logger.info(data)
                 processed_message = process_gateway_data(data)
             elif MQTT_TEMPERATURE_TOPIC in message.topic:
                 logger.info(f"Processing message from temperature topic: {message.topic}")
