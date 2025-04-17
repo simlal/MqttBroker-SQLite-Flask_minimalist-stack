@@ -192,6 +192,9 @@ groups $USER
 Setup: firmware side 🛠️
 ===
 
+<!-- column_layout: [2, 1] -->
+<!-- column: 0 -->
+
 # Setup Steps ✅
 
 ```bash
@@ -208,8 +211,7 @@ Edit `.cargo/config.toml`:
 ESP_LOG = "DEBUG"
 SSID = "YourWifiSSID"
 ```
-
----
+<!-- column: 1 -->
 
 # Build and flash the code 🚀
 
@@ -698,7 +700,7 @@ Flask Application Architecture 🌶️
 - **MQTT Client Integration** 📡: Connects to broker and processes incoming device messages
 - **Data Processing Layer** ⚙️: Validates and transforms data before storage
 - **REST API Endpoints** 🔌: Provides programmatic access to device data
-- **Web Dashboard** 📊: Visualizes gateway and temperature readings
+- **Web Inteface** 📊: Visualizes gateway and temperature readings
 
 ## Key Features
 
@@ -735,7 +737,6 @@ def handle_mqtt_message(client, userdata, message):
 
 - **SQLite Connection Pool**: Efficient connection management with Flask g object
 - **Query Builder**: Dynamic SQL generation based on request parameters
-- **Transaction Management**: Automatic commits for data modification operations
 
 <!-- end_slide -->
 
@@ -763,10 +764,15 @@ The application includes built-in test endpoints to simulate device data:
 ```python
 @app.route("/api/publish-temperature-test", methods=["POST"])
 def publish_temperature_test():
-    data = {"macAddress": "E0:5A:1B:30:B3:38", 
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-            "temperature": random.uniform(15, 25)}
-    # Publish to MQTT topic for processing
+    data = {"macAddress": "E0:5A:1B:30:B3:38", "timestamp": now, "temperature": random.uniform(15, 25)}
+    data_to_pub = json.dumps(data)
+    topic = f"{MQTT_TEMPERATURE_TOPIC}/{data['macAddress']}"
+    logger.info(f"Publishing on {topic=} with data: {data_to_pub}")
+    success, msg_id = mqtt_client.publish(topic, bytes(data_to_pub, "utf-8"))
+    if success == 0:
+        return json.dumps({"statusCode": 200, "msgId": msg_id})
+    else:
+        return json.dumps({"statusCode": 400, "error": f"Could not connect to broker. Code: {success}"})
 ```
 
 <!-- end_slide -->
@@ -810,7 +816,9 @@ Current Limitations 🚧
 - **Monitoring** 📉: No health checks or automatic recovery system
 - **Development** 🛠️: Firmware updates require physical access to ESP32 (No OTA)
 
-The real value of this project is in the **modularity** and **portability** of the code, which can be adapted to easily integrate new sensor data and deploy on any linux machine.
+<!-- new_lines: 2 -->
+
+Value of this project is in the **modularity** and **portability** of the code, which can be adapted to easily integrate new sensor data and deploy on any linux machine.
 
 <!-- end_slide -->
 
@@ -823,6 +831,8 @@ Future Perspectives 🔮
 - **Mesh Network** 🕸️: Deploy multiple ESP32s in ESP-NOW mesh for extended range
 - **Sensor Expansion** 🌡️: Add temperature, humidity and other environmental sensors
 - **Security Enhancements** 🔐: TLS for MQTT, secure credentials storage
+
+<!-- new_lines: 4 -->
 
 I really wish I had time to explore the sensor mesh feature with the ESP-NOW protocol, which would add another layer of complexity and make the project even more interesting and usefull.
 
