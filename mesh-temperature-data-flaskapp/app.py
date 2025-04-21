@@ -205,6 +205,8 @@ def handle_mqtt_message(client, userdata, message):
                 processed_message = process_gateway_data(data)
             elif MQTT_TEMPERATURE_TOPIC in message.topic:
                 logger.info(f"Processing message from temperature topic: {message.topic}")
+                # FIX: No real time clock in gateway for now, lets use received time as timestamp, overriding
+                data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 processed_message = process_sensor_temp_data(data)
             else:
                 logger.warning(f"Not processing topic {message.topic}")
