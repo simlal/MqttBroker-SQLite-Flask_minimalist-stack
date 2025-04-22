@@ -157,7 +157,6 @@ The backend architecture follows a 'microservices-like' approach with three main
 1. **MQTT Broker**: Eclipse Mosquitto  handles communication between IoT devices and the backend system. Lightweight and efficient.
 
 2. **SQLite Database**: A lightweight, file-based SQL database that stores device data persistently with minimal resource requirements.
-
 The database stores:
 
 - Device information (MAC addresses, names, types)
@@ -218,6 +217,140 @@ The project is still in its early stages, but certain milestones have been achie
 - SQLite database with tables for devices, readings and gateway RSSI values
 - Flask web application with RESTful API endpoints for CRUD operations
 
+### Firmware behavior
+
+#### Compilation and flashing
+
+\
+A typical compilation time of the firmware with the `cargo build --bin main_gateway --release` takes 131s on a Steam Deck LCD with a custom AMD Zen 2 CPU and 16GB of RAM[17].
+After compilation, flashing usually takes around 40-50s using the `espflash flash --monitor target/xtensa-esp32-none-elf/release/main_gateway` command.
+
+#### Runtime behavior
+
+\
+The Norvi MCU quickly scans the I2C bus and within seconds is able to initialize the display with the following information and targets:
+
+- Last refresh update (Target 5s -> always within 5110 and 5115 ms)
+- Temperature data (Fake data with 2 decimal floating precision)
+- Wifi Strength calculated from RSSI (Display matches the console logs over serial debug)
+- MQTT Client status (Connection code as `MqttStatus` Enum and message)
+
+Overall, the display matches the console logs over serial debug. When moving the device further away from the Wifi router, the RSSI value decreases and the display updates accordingly.
+An example of the display can be seen in [Fig. 5](./media/figure-5.jpeg).
+
+#### Test cases
+
+\
+There are a few test scenarios that were ran to validate the behavior of the firmware.
+
+First, connection-related test cases with the Wifi Network where done.
+
+1. Wrong Wifi credentials: The gateway is unable to connect to the Wifi network and the displays the 'Wifi' strength at 0%.
+2. Wifi connection lost: Gateway looses connection to the Wifi network and the display shows 'Wifi' strength at 0%
+
+For both, we see that the connection task is being retried every 10s as expected in the logs (data not shown).
+
+Then, to test the MQTT connection, the gateway is ran without the MQTT broker running or with a bad payload:
+
+1. MQTT broker not running: The gateway is unable to connect to the MQTT broker and the display shows 'MQTT' code of 0 'Offline'.
+2. Wrong payload type: The gateway is able to connect to the MQTT broker, but the payload is too large (over 128 bytes) and we see 'MQTT' code of 5 'Error'.
+
+For both scenarios, we see one of the following logs:
+
+```bash
+ERROR - connect error: ConnectionReset. Retrying in 30s
+ERROR - publish error: WriteBuffer error. Retrying in 30s
+```
+
+Finally, the last test case is to test the MQTT connection with the broker running and a valid payload.
+As soon as the gateway is connected to the MQTT broker (every 30s retry), we see the following logs:
+
+```bash
+INFO - HACK: Generated temperature: 5.595 C
+INFO - Connecting to MQTT broker at 192.168.68.108:1883...
+DEBUG - RX QUEUE FULL
+INFO - connected!
+INFO - Connected to broker!
+INFO - Raw RSSI value: -51 dBm
+DEBUG - Converted constrained_rssi=-51 to quality=65%
+INFO - Current rssi%: 65
+INFO - Publishing data: {"macAddress":"3C:E9:0E:72:12:4C", "timestamp":1835587, "rssi":65}
+INFO - Successfully sent payload to broker on topic=/readings/gateway/3C:E9:0E:72:12:4C
+INFO - Publishing data: {"macAddress":"40:91:51:CB:A4:64", "timestamp":1835608, "temperature":5.49}
+INFO - Successfully sent payload to broker on topic=/readings/gateway/3C:E9:0E:72:12:4C
+```
+
+We also see the matching display on the OLED screen with the RSSI value and the temperature value (data not shown).
+
+### Backend behavior
+
+On the backend side, the application is still in its early stages (especially regarding security). Still, when running the stack the
+docker compose logs can be seen for the [SQLite db initialization](./media/figure-6.png) (Fig. 6),
+the [Mosquitto MQTT broker](./media/figure-7.png) (Fig. 7) and the [Flask web application](./media/figure-8.png) (Fig. 8).
+
+In those logs, we see the connection from the gateway (IDentified by its MAC address) to the MQTT broker [(see Fig. 7)](./media/figure-7.png).
+Then, the flask web application is able to receive the data from the MQTT broker and store it in the SQLite database [(see Fig. 8)](./media/figure-8.png).
+
+#### Error handling example
+
+\
+An example of error handling is shown in the Flask application log, where a dataformat error is thrown when calling the `POST /api/sensor-temperature-readings`
+route and thus the
+payload not being inserted in the SQLite database due to incompatibility with the schema [(see Fig. 8)](./media/figure-8.png).
+
+On the inteface side, we see that the gateway RSSI was received, stored and can be displayed in the web interface [(see Fig. 9)](./media/figure-9.png).
+However, the temperature data is not displayed in the `/sensor-temperature-readings` route because the payload was not inserted
+in the SQLite db [(see Fig. 10)](./media/figure-10.png).
+
+#### Testing the pubsub interface
+
+\
+Since the Flask application acts as a PubSub interface, not just subscribing to given topics but can also publish.
+We have created endpoints to test the publishing of messages to the MQTT broker for both the RSSI Gateway readings and the temperature sensor readings.
+
+For example, by calling the `/api/test-temperature-publish` endpoint with the following command:
+
+```bash
+curl \
+  -X POST \
+  -H 'content-type: application/json' \
+  'http://127.0.0.1:5000/api/publish-temperature-test'
+```
+
+We can simulate the publishing of a reading from sensor
+with deviceId=3 (based on its MAC address). We then see the reflected changes in the database and the interface [(See Fig. 11)](./media/figure-11.png).
+
+## Future Work & Perspectives
+
+For the project to be fully functional, we would first need to fix the issues with the
+I2C module sharing with the ADC sensors and the display. The borrow checker does not
+allow us to share the I2C module between two tasks by default, we would need to follow
+Embassy's guide with having a static ref to the I2C module and use a Mutex to share it
+between the tasks.
+
+Then, we would need to implement the sensor nodes firmware and the custom PCB for the
+sensor nodes. We could then leverage the ESP-NOW wireless protocol[18] to
+communicate between the sensor nodes and the gateway, which would allow for a more
+efficient and reliable communication. We would also need to implement some in-memory
+data structure (FIFO/Queue) to store the data from the sensor nodes in the gateway prior
+to sending it to the MQTT broker.
+
+Finally, we would need to implement security features for the MQTT broker, the Flask
+application and the MQTT connection from the gateway, with measures such as
+authentication/authorization, encryption and TLS. In the current state, the application
+is not secure and should not be used in production. We could simultaneously provide
+a way to use DNS instead of IP addresses for the MQTT broker and the Flask application,
+allowing for a more flexible and portable solution.
+
+On the Gateway side, implementing over-the-air (OTA) firmware updates via the MQTT
+broker would be beneficial. This could also enable dynamic configuration changes such
+as adjusting the frequency of data transmission or display refresh rates without
+requiring physical access to the device.
+
+## Conclusion
+
+This project demonstrates the feasibility of using Rust for IoT firmware development, especially in the context of cold-chain monitoring solutions. The combination of a lightweight ESP32-based gateway, a portable cloud backend, and a focus on real-time data collection and logging provides a solid foundation for future developments in this area.
+
 ## References
 
 [1]: Norvi. (2025). NORVI IIOT-AE04-I – Datasheet. <https://www.norvi.lk/docs/norvi-iiot-ae04-i-datasheet/>
@@ -251,3 +384,7 @@ The project is still in its early stages, but certain milestones have been achie
 [15]: Docker, Inc. (2023). Docker Compose - Define and run multi-container applications with Docker. <https://docs.docker.com/compose/>
 
 [16]: Docker, Inc. (2023). Networking overview. <https://docs.docker.com/engine/network/>
+
+[17]: Valve Corporation. (2023). Steam Deck specs. <https://www.steamdeck.com/en/tech/deck>
+
+[18]: Espressif Systems. (2023). ESP-NOW - A connectionless communication protocol. <https://www.espressif.com/en/solutions/low-power-solutions/esp-now>
