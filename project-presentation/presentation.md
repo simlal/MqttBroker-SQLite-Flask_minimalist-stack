@@ -77,6 +77,8 @@ MCU: Norvi IIOT AE04, industrial-grade ESP32-WROOM32 module with built-in Wi-Fi,
 
 built-in ADC + GPIO pins, the module can connect to custom PCBs and sensors 🔌
 
+---
+
 Example with PT100 temperature sensor provides high-precision measurements for cold-chain monitoring via a custom PCB with ADC/DAC converters to transform analog signals to digital🌡️
 
 ![image:width:50%](./media/figure-1.jpeg)
@@ -114,7 +116,7 @@ IoT Architecture: Gateway 🌐
 
 # Gateway Hardware & Firmware Setup
 
-<!-- column_layout: [2, 1] -->
+<!-- column_layout: [2, 3] -->
 
 <!-- column: 0 -->
 
@@ -163,7 +165,7 @@ IoT Architecture: Backend 🌐
 IoT Architecture: Docker compose 🌐
 ===
 
-<!-- column_layout: [2, 1] -->
+<!-- column_layout: [2, 3] -->
 <!-- column: 0 -->
 # Docker Compose Deployment
 
@@ -172,63 +174,250 @@ IoT Architecture: Docker compose 🌐
 - Docker's DNS resolution enables simple inter-container communication
 - Components communicate through service names as hostnames
 
+---
+
+Simplified `compose.yaml` file:
+
+```yaml
+services:
+  mqtt:        # Message Broker 📡
+    image: eclipse-mosquitto:2
+  
+  db:          # Database 🗃️
+    build: Dockerfile.sqlite
+    volumes:
+      - ./data:/db
+  
+  web:         # Flask Application 🌶️
+    build: Dockerfile.flask
+    depends_on: [mqtt, db]
+```
+
 <!-- column: 1 -->
 
-![](./media/figure-4.png)
+![](./media/figure-2.jpeg)
 
 <!-- end_slide -->
-Demo: Display Refresh & WiFi Connection 📱
+
+Results: Display Refresh & WiFi Connection 📱
 ===
 
 Short demo showing the ESP32 display refreshing with WiFi and MQTT status:
 
-- The OLED display updates every ~5 seconds ⏱️
-- Shows current WiFi signal strength (RSSI) 📶
+- The OLED display refresh OK (Target 5s -> always within 5110 and 5115 ms) ⏱️
+- Wifi Strength calculated from RSSI (Display matches the console logs) 📶
 - Indicates MQTT broker connection status 🔌
-- Real-time feedback for troubleshooting in the field 🔍
+- Real-time connection feedback for troubleshooting in the field 🔍
 
 ![image:width:50%](./media/figure-5.jpeg)
 
 <!-- end_slide -->
 
-Pre-recorded Demo 🚀: Gateway + Docker compose in action
+Backend Results: Testing the MQTT-Server-Interface 💻
 ===
 
-1. ESP32 setup, connects to wifi
-2. Try to connect to offline MQTT broker, retries
-3. Docker compose services start:
-    - Mosquitto broker
-    - Flask app (server listens on port 5000, subscribes to MQTT topics)
-    - SQLite database (initialize schema if not present)
-4. ESP32 connects to MQTT broker
-5. ESP32 publishes data to MQTT broker
-6. Broker receives data and publishes to Flask app
-7. Flask app processes data via one of its endpoints
-8. Data is stored in SQLite database
-9. Flask app continuously listens for new data and requests for dashboard
+<!-- column_layout: [1, 2] -->
+<!-- column: 0 -->
 
-```bash +exec
-xdg-open ./media/demo_reconnect.mp4
+# Flask Web Interface
+
+Run the compose and access the web interface at `http://localhost:5000`:
+
+## Test the API endpoints (MQTT message handling and Database insertion)
+
+**Both API endpoint and MQTT Testing:**
+
+```bash
+curl -X POST -H 'content-type: application/json' \
+  'http://127.0.0.1:5000/api/publish-temperature-test'
 ```
+
+Response and insert into the database:
+
+```json
+{
+  "statusCode": 200,
+  "msgId": 1
+}
+```
+
+<!-- pause -->
+<!-- column: 1 -->
+
+## Example of the web interface with just inserted data
+
+ Filtered by date range:
+
+![image:width:100%](./media/figure-11.png)
+<!-- end_slide -->
+
+Backend Results: Test Cases on Gateway 🧪
+===
+
+<!-- column_layout: [1, 1] -->
+
+<!-- column: 0 -->
+
+# Test Scenarios
+
+- WiFi Connection: Tests with lost connection and wrong credentials
+- MQTT Connection: Tests with offline broker and invalid payload
+- Data Flow: Validation of the complete pipeline from device to web interface
+
+<!-- column: 1 -->
+
+# Example Log from Successful Test
+
+```
+INFO - HACK: Generated temperature: 5.595 C
+INFO - Connecting to MQTT broker at 192.168.68.108:1883...
+INFO - connected!
+INFO - Connected to broker!
+INFO - Raw RSSI value: -51 dBm
+INFO - Current rssi%: 65
+INFO - Publishing data: {"macAddress":"3C:E9:0E:72:12:4C", 
+  "timestamp":1835587, "rssi":65}
+INFO - Successfully sent payload to broker on 
+  topic=/readings/gateway/3C:E9:0E:72:12:4C
+```
+
+<!-- end_slide -->
+Backend Results: Error Handling on gateway 🛡️
+===
+
+<!-- column_layout: [1, 1] -->
+
+<!-- column: 0 -->
+
+# WiFi Connection Tests
+
+**Test Scenarios:**
+
+- Wrong WiFi credentials
+- Connection lost
+
+**Results:**
+
+- Display shows WiFi strength at 0%
+- Connection task retries every 10s
+- Visual feedback for troubleshooting
+
+<!-- pause -->
+<!-- column: 1 -->
+
+# MQTT Connection Tests
+
+**Test Scenarios:**
+
+- Broker not running
+- Invalid payload format
+
+**Error Logs:**
+
+```
+ERROR - connect error: ConnectionReset. Retrying in 30s
+ERROR - publish error: WriteBuffer error. Retrying in 30s
+```
+
+**Results:**
+
+- Display shows "MQTT: Offline" or error codes
+- Connection retries every 30s
+- Data validation prevents corrupt entries
+
+<!-- end_slide -->
+
+Backend Results: Flask & Database 🗄️
+===
+
+<!-- column_layout: [1, 1] -->
+
+<!-- column: 0 -->
+
+# Backend Components
+
+**Service Logs:**
+
+- SQLite database initialization
+- Mosquitto MQTT broker connection
+- Flask web application processing
+
+**Error Handling:**
+
+- Data format validation
+- Schema compatibility checks
+- Rejection of invalid payloads
+
+# Web Interface
+
+**Features:**
+
+- View gateway RSSI data
+- Monitor temperature readings
+- Filter by date ranges
+- API endpoints for programmatic access
+
+<!-- pause -->
+<!-- column: 1 -->
+
+![image:width:50%](./media/figure-6.png)
+
+![image:width:100%](./media/figure-7.png)
+
+![image:width:100%](./media/figure-8.png)
 
 <!-- end_slide -->
 
 Current Limitations 🚧
 ===
 
-TODO
+# Technical Challenges
+
+- **I2C Module Sharing** 🔄: Rust's borrow checker prevents direct sharing between ADC sensors and display
+  - Need to implement Mutex-based sharing following Embassy guidelines
+
+<!-- new_lines: 1 -->
+
+- **Security Concerns** 🔒: Current implementation lacks proper security features
+  - No authentication/authorization for MQTT broker or Flask app
+  - Missing TLS/encryption for data transmission
+  - Hardcoded IP addresses instead of DNS resolution (what if IP changes?!)
+
+<!-- new_lines: 1 -->
+
+- **Sensor Network** 📡: Only gateway implemented, not the complete sensor mesh
+  - Limited to single data source (gateway) rather than distributed sensors
+
 <!-- end_slide -->
 
 Future Perspectives 🔮
 ===
 
-TODO
+# Next Development Steps
+
+- **Complete Sensor Network** 📡
+  - Implement ESP-NOW wireless protocol for sensor-to-gateway communication
+  - Design custom PCB for battery-powered sensor nodes
+  - Add FIFO/queue for reliable data buffering on gateway
+
+<!-- new_lines: 1 -->
+
+- **Security Enhancements** 🔒
+  - Add authentication for MQTT and web interface
+  - Implement TLS encryption for all communications
+  - Replace IP addresses with DNS for flexible deployment
+
+<!-- new_lines: 1 -->
+
+- **Gateway Improvements** 📲
+  - Over-the-air (OTA) firmware updates via MQTT
+  - Dynamic configuration for transmission rates and display settings
+
 <!-- end_slide -->
 
-Thank you! 🙏
+<!-- jump_to_middle -->
+Thank you! 🙏 Questions ❓
 ===
-
-Questions?
 
 <!-- end_slide -->
 <!-- jump_to_middle -->
@@ -893,6 +1082,28 @@ def publish_temperature_test():
         return json.dumps({"statusCode": 200, "msgId": msg_id})
     else:
         return json.dumps({"statusCode": 400, "error": f"Could not connect to broker. Code: {success}"})
+```
+
+<!-- end_slide -->
+
+Pre-recorded Demo 🚀: Gateway + Docker compose in action
+===
+
+1. ESP32 setup, connects to wifi
+2. Try to connect to offline MQTT broker, retries
+3. Docker compose services start:
+    - Mosquitto broker
+    - Flask app (server listens on port 5000, subscribes to MQTT topics)
+    - SQLite database (initialize schema if not present)
+4. ESP32 connects to MQTT broker
+5. ESP32 publishes data to MQTT broker
+6. Broker receives data and publishes to Flask app
+7. Flask app processes data via one of its endpoints
+8. Data is stored in SQLite database
+9. Flask app continuously listens for new data and requests for dashboard
+
+```bash +exec
+xdg-open ./media/demo_reconnect.mp4
 ```
 
 <!-- end_slide -->
