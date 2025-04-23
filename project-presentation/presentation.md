@@ -8,17 +8,13 @@ author: Simon Lalonde
 Project Overview 🌐
 ===
 
-This project connects a NORVI ESP32 microcontroller to WiFi and an MQTT broker.
+This project develops a Rust-based firmware for an IoT gateway optimizing network coverage for cold-chain temperature monitoring sensors 🌡️
 
-Data is published to a topic based on MAC address and handled by a MQTT (Mosquitto)/Flask backend
-that stores it in SQLite.
+The gateway uses an industrial ESP32-WROOM32 (Norvi IIOT AE04) with an OLED display for real-time signal strength monitoring 📶
 
-The firmware 🕹️ code is written in **Rust** using the *Embassy* framework, which is `async` and `no-std`, while the
-backend is written in *Python* with **Flask** and **SQLite**.
+The firmware 🕹️ is written in **Rust** using the *Embassy* async framework, while the backend uses *Python* with **Flask** and **SQLite**.
 
-Backend code is minimalist and portable
-by leveraging `docker compose` for easy, cloud-native ☁️ deployment.
-is:issue state:open
+Backend is containerized and cloud-agnostic ☁️ by leveraging `docker compose` for portable deployment across environments 🐳
 
 **Code repositories:**
 
@@ -26,40 +22,220 @@ is:issue state:open
 - [Frontend/backend/database repository](https://github.com/simlal/mqttbroker-sqlite-flask_minimalist-stack)
 <!-- end_slide -->
 
-Why Rust and Embassy? 🦀⚡
+Problem Statement 🔍
 ===
 
-# Embassy
+# Gaps in Cold-Chain Monitoring Solutions
 
-[Embassy](https://embassy.dev/) is an async, no-std embedded framework for Rust. It brings async/await
-to microcontrollers with excellent performance and memory safety.
+Cold-chain monitoring is essential for temperature-sensitive products like pharmaceuticals and food 🌡️
 
-- It works with `esp-hal`, making it ideal for WiFi-capable boards like the ESP32.
-- Has support for timers, data structures, and async tasks.
+**Current limitations:**
 
-# Rust
+- Most solutions rely on single Arduino nodes with breakout sensors 🔌
+- Consumer hardware (Arduino/Raspberry Pi) not suitable for production 🛠️
+- Commercial options are expensive 💰 or tied to specific cloud providers ☁️
 
-- Memory safe + strong type system, thus ⬇️ bugs.
-- Excellent performance ⚡, comparable to C/C++.
+# Network Coverage Challenges
+
+- Sensor placement affected by distance, obstacles, and interference 📶
+- WiFi and Bluetooth have limited range in large environments 📡
+
+# Our Approach
+
+Using a sensor mesh network enables a simple deployment with:
+
+- Single gateway to cloud 🌐
+- Multiple sensor nodes for wide area coverage 🌟
+- Only one point of access required for data collection 🔄
+<!-- end_slide -->
+
+Project Objectives 🎯
+===
+
+# Main Goals
+
+Our project aims to:
+
+- Develop a Rust-based firmware for an IoT gateway optimizing sensor network coverage 📡
+- Use reliable, industrial-grade hardware and sensors suitable for production environments 🏭
+- Implement both real-time monitoring (display) and cloud data logging capabilities 📊
+- Create a portable, vendor-agnostic backend solution deployable anywhere ☁️
+
+# Current Achievement
+
+While the full sensor mesh network remains a future goal, we've successfully implemented:
+
+- Working gateway with WiFi connectivity 📶
+- Complete cloud backend with data storage 🗄️
+- Functional demonstration with a single sensor node ✅
+
+<!-- end_slide -->
+Methodology: Hardware 🔩
+===
+
+MCU: Norvi IIOT AE04, industrial-grade ESP32-WROOM32 module with built-in Wi-Fi, Bluetooth and OLED display 📱
+
+built-in ADC + GPIO pins, the module can connect to custom PCBs and sensors 🔌
+
+Example with PT100 temperature sensor provides high-precision measurements for cold-chain monitoring via a custom PCB with ADC/DAC converters to transform analog signals to digital🌡️
+
+![image:width:50%](./media/figure-1.jpeg)
 
 <!-- end_slide -->
 
-IoT Architecture 🌐
+Methodology: Software 📊
 ===
 
-# Overview
+# Firmware Development 🕹️
 
-Architecture is split up into two main components:
+- **Bare Metal Rust** implementation using **Embassy Async framework** ⚡
+- Compatible with Espressif's HAL for ESP32 platform
+- Configurable with environment variables (i.e. `SSID`, `SSID_PASSWORD`)
+- Easily flashed using `espflash` and the `esp` toolchain via USB
 
-- Hardware (ESP32) 🛠️
-- Backend (Mosquitto + Flask + SQLite) as a single managed `docker-compose.yaml` 🐳 in containers 🗄️
+# Cloud Backend 🌐
 
-By leveraging both [Embassy](https://embassy.dev/) and [Docker](https://www.docker.com/), we can create a simple yet fully-fledged and vendor agnostic solution.
+*Components:*
 
-Next slide for a diagram of the architecture:
+- **Python** with **Flask** 🌶️ web server acting as PubSub interface with MQTT broker
+- **Mosquitto MQTT** 📡 broker receives data from ESP32 devices
+- **SQLite** 🗃️ database for persistent storage
+- All components containerized using **Docker** 🐳 services with Docker Compose
+
+*Attributes:*
+
+- File-based volume for database resilience across container restarts
+- Configurable components through dedicated config files:
+  - `mosquitto.conf`, `config.py`, `init.sql`
+
+<!-- end_slide -->
+IoT Architecture: Gateway 🌐
+===
+
+# Gateway Hardware & Firmware Setup
+
+<!-- column_layout: [2, 1] -->
+
+<!-- column: 0 -->
+
+- ESP32-based gateway with modular design for adding analog and digital sensors 🔌
+- Firmware structured in 2 main compilation binaries (gateway & sensor nodes) 📟
+- Modular code organization for easy extension:
+  - `gateway_lib`: Display handling, HTTP requests, RNG for simulated readings
+  - `common`: WiFi connection and temperature sensor modules
+  - `main_gateway`: Main loop and task management for all operations
+
+<!-- column: 1 -->
+![image:width:100%](./media/figure-3.jpeg)
 
 <!-- end_slide -->
 
+IoT Architecture: Backend 🌐
+===
+
+# Backend Infrastructure
+
+'Microservices-like' approach with three main components:
+
+---
+
+1. **MQTT Broker** 📡: Eclipse Mosquitto for lightweight device communication
+   - Handles pub/sub between IoT devices and backend
+
+---
+
+2. **SQLite Database** 🗃️: File-based SQL storage for:
+   - Device information (MAC addresses, names, types)
+   - Gateway RSSI signal strength values
+   - Sensor readings with timestamps
+
+---
+
+3. **Flask Application** 🌶️: Dual-purpose Python web application:
+   - **MQTT Client**: Subscribes to device topics, processes messages
+   - **Web Interface & API**: Visualization and programmatic access
+     - Main routes for data viewing and device management
+     - RESTful API endpoints with validation
+     - Support for date range filtering
+
+<!-- end_slide -->
+
+IoT Architecture: Docker compose 🌐
+===
+
+<!-- column_layout: [2, 1] -->
+<!-- column: 0 -->
+# Docker Compose Deployment
+
+- Fully containerized backend for portable deployment 🐳
+- Easily deployed on any cloud provider or on-premise hardware
+- Docker's DNS resolution enables simple inter-container communication
+- Components communicate through service names as hostnames
+
+<!-- column: 1 -->
+
+![](./media/figure-4.png)
+
+<!-- end_slide -->
+Demo: Display Refresh & WiFi Connection 📱
+===
+
+Short demo showing the ESP32 display refreshing with WiFi and MQTT status:
+
+- The OLED display updates every ~5 seconds ⏱️
+- Shows current WiFi signal strength (RSSI) 📶
+- Indicates MQTT broker connection status 🔌
+- Real-time feedback for troubleshooting in the field 🔍
+
+![image:width:50%](./media/figure-5.jpeg)
+
+<!-- end_slide -->
+
+Pre-recorded Demo 🚀: Gateway + Docker compose in action
+===
+
+1. ESP32 setup, connects to wifi
+2. Try to connect to offline MQTT broker, retries
+3. Docker compose services start:
+    - Mosquitto broker
+    - Flask app (server listens on port 5000, subscribes to MQTT topics)
+    - SQLite database (initialize schema if not present)
+4. ESP32 connects to MQTT broker
+5. ESP32 publishes data to MQTT broker
+6. Broker receives data and publishes to Flask app
+7. Flask app processes data via one of its endpoints
+8. Data is stored in SQLite database
+9. Flask app continuously listens for new data and requests for dashboard
+
+```bash +exec
+xdg-open ./media/demo_reconnect.mp4
+```
+
+<!-- end_slide -->
+
+Current Limitations 🚧
+===
+
+TODO
+<!-- end_slide -->
+
+Future Perspectives 🔮
+===
+
+TODO
+<!-- end_slide -->
+
+Thank you! 🙏
+===
+
+Questions?
+
+<!-- end_slide -->
+<!-- jump_to_middle -->
+Extra content section 📚
+===
+
+<!-- end_slide -->
 IoT Architecture 🌐
 ===
 
@@ -94,29 +270,6 @@ IoT Architecture 🌐
 ```
 
 <!-- end_slide -->
-
-IoT Architecture 🌐
-===
-
-# Novelty and Benefits
-
-## On hardware side
-
-- **Rust** 🦀: Memory safe, async, no-std, and high performance.
-- **Embassy** ⚡: Scheduler without RTOS overhead, vendor agnostic (compatibility)
-
-## On backend side
-
-Based on all open-source software and ready for any cloud provider or on-premise deployment.
-
-- **MQTT** 📡: Lightweight pub/sub messaging protocol ideal for constrained IoT devices
-- **Containerization** 🐳: Modular, portable deployment across environments
-- **Flask** 🌶️: Lightweight API + dashboard and CRUD operations in a single framework
-- **SQLite** 🗃️: Zero-configuration database perfect for edge deployments
-- **Decoupled Design** 🧩: Message broker separates device communication from logic
-
-<!-- end_slide -->
-
 IoT Architecture 🌐
 ===
 
@@ -147,22 +300,6 @@ IoT Architecture 🌐
 - **Docker Network** 🔄: Inter-container communication using Docker's built-in DNS resolution and bridge networking
 
 <!-- end_slide -->
-
-Hardware 🔩
-===
-
-Simple setup with NORVI ESP32 and OLED display
-
-![image:width:20%](./media/norvi_iiot.png)
-
-# Hardware Needed
-
-- ESP32-WROOM (NORVI) with OLED  
-- 12V DC supply  
-- *OPTIONAL*: Additional ESP32s for ESP-NOW mesh
-
-<!-- end_slide -->
-
 Setup: firmware side 🛠️
 ===
 
@@ -540,23 +677,6 @@ Gateway Main loop 🔄
 ```
 
 <!-- end_slide -->
-
-Demo: Display Refresh & WiFi Connection 📱
-===
-
-Short demo showing the ESP32 display refreshing with WiFi and MQTT status:
-
-- The OLED display updates every ~5 seconds ⏱️
-- Shows current WiFi signal strength (RSSI) 📶
-- Indicates MQTT broker connection status 🔌
-- Real-time feedback for troubleshooting in the field 🔍
-
-```bash +exec
-xdg-open ./media/display_reconnect.mp4
-```
-
-<!-- end_slide -->
-
 Data processing and storage on the backend 🗄️
 ===
 
@@ -774,73 +894,5 @@ def publish_temperature_test():
     else:
         return json.dumps({"statusCode": 400, "error": f"Could not connect to broker. Code: {success}"})
 ```
-
-<!-- end_slide -->
-
-Pre-recorded Demo 🚀: Gateway + Docker compose in action
-===
-
-1. ESP32 setup, connects to wifi
-2. Try to connect to offline MQTT broker, retries
-3. Docker compose services start:
-    - Mosquitto broker
-    - Flask app (server listens on port 5000, subscribes to MQTT topics)
-    - SQLite database (initialize schema if not present)
-4. ESP32 connects to MQTT broker
-5. ESP32 publishes data to MQTT broker
-6. Broker receives data and publishes to Flask app
-7. Flask app processes data via one of its endpoints
-8. Data is stored in SQLite database
-9. Flask app continuously listens for new data and requests for dashboard
-
-```bash +exec
-xdg-open ./media/demo_reconnect.mp4
-```
-
-<!-- end_slide -->
-
-Current Limitations 🚧
-===
-
-## Hardware Constraints
-
-- **Power Management** 🔋: No deep sleep implementation yet
-- **Limited Sensors** 📊: Currently only tracking WiFi signal strength
-- **Security** 🔒: ESP32 firmware uses hardcoded WiFi credentials
-- **Clock Synchronization** ⏰: Relies on uptime timestamps rather than RTC
-
-## Software Limitations
-
-- **Authentication** 👤: MQTT broker and Flask app lack user authentication
-- **Scalability** 📈: SQLite may become a bottleneck with many devices
-- **Monitoring** 📉: No health checks or automatic recovery system
-- **Development** 🛠️: Firmware updates require physical access to ESP32 (No OTA)
-
-<!-- new_lines: 2 -->
-
-Value of this project is in the **modularity** and **portability** of the code, which can be adapted to easily integrate new sensor data and deploy on any linux machine.
-
-<!-- end_slide -->
-
-Future Perspectives 🔮
-===
-
-## Short-term Improvements
-
-- **OTA Updates** 📡: Implement over-the-air firmware updates
-- **Mesh Network** 🕸️: Deploy multiple ESP32s in ESP-NOW mesh for extended range
-- **Sensor Expansion** 🌡️: Add temperature, humidity and other environmental sensors
-- **Security Enhancements** 🔐: TLS for MQTT, secure credentials storage
-
-<!-- new_lines: 4 -->
-
-I really wish I had time to explore the sensor mesh feature with the ESP-NOW protocol, which would add another layer of complexity and make the project even more interesting and usefull.
-
-<!-- end_slide -->
-
-Thank you! 🙏
-===
-
-Questions?
 
 <!-- end_slide -->
