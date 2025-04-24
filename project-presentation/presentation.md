@@ -1,5 +1,5 @@
 ---
-title: "ESP32 as Gateway 📡 to an MQTT broker/SQL database cloud-agnostic container 🐳 "
+title: "🦀 Rust‑Based IoT Gateway for Network Coverage Optimization in Cold‑Chain Monitoring 🧊 paired to 🐳 containerized cloud‑agnostic backend ☁️"
 sub_title: (IFT-744 - Advanced IoT Project)
 author: Simon Lalonde
 
