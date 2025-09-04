@@ -23,7 +23,7 @@ An overview of the software layer stack:
 The minimalist dashboard in action:
 [![Dashboard Screenshot](./project-presentation/media/figure-9.png)](./project-presentation/media/figure-9.png)
 
-### Architecture
+## Software Architecture
 
 The architecture follows a microservices approach with three main components:
 
