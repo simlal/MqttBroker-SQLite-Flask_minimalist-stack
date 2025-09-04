@@ -17,7 +17,11 @@ The stack is fully containerized using Docker Compose, making it easy to deploy 
 
 This project is designed as a companion to the [ESP32 Gateway project](https://github.com/simlal/norvi-esp32-gateway-mqtt), providing the server-side infrastructure to receive and process data from ESP32 devices.
 
-A simple demonstration of the complete stack in action can be found [here](TODO) with [matching dashboard](TODO).
+An overview of the software layer stack:
+[![Architecture Diagram](./project-presentation/media/figure-2.jpeg)](./project-presentation/media/figure-2.jpeg)
+
+The minimalist dashboard in action:
+[![Dashboard Screenshot](./project-presentation/media/figure-9.png)](./project-presentation/media/figure-9.png)
 
 ### Architecture
 
